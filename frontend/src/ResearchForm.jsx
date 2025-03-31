@@ -12,25 +12,25 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
     development_stage_id: '',
     start_date: '',
     source_link: '',
-    region_ids: [],
     organization_ids: [],
     person_ids: [],
-    direction_ids: []
+    direction_ids: [],
+    source_ids: []
   }
 
   const [formData, setFormData] = useState(initialFormState)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
+  
+  const [directionSearch, setDirectionSearch] = useState('')
+  const [organizationSearch, setOrganizationSearch] = useState('')
+  const [personSearch, setPersonSearch] = useState('')
+  const [sourceSearch, setSourceSearch] = useState('')
 
   useEffect(() => {
-    // Инициализация формы данными для редактирования
     if (editingResearch) {
       console.log("Данные для редактирования:", editingResearch);
-      
-      // Преобразуем связанные объекты в массивы ID
-      const regionIds = editingResearch.regions ? 
-        editingResearch.regions.map(region => region.id) : [];
       
       const organizationIds = editingResearch.organizations ? 
         editingResearch.organizations.map(org => org.id) : [];
@@ -40,6 +40,9 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
       
       const directionIds = editingResearch.directions ? 
         editingResearch.directions.map(direction => direction.id) : [];
+        
+      const sourceIds = editingResearch.sources ? 
+        editingResearch.sources.map(source => source.id) : [];
 
       setFormData({
         name: editingResearch.name || '',
@@ -48,10 +51,10 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
         development_stage_id: editingResearch.development_stage?.id || '',
         start_date: editingResearch.start_date || '',
         source_link: editingResearch.source_link || '',
-        region_ids: regionIds,
         organization_ids: organizationIds,
         person_ids: personIds,
-        direction_ids: directionIds
+        direction_ids: directionIds,
+        source_ids: sourceIds
       })
     } else {
       setFormData(initialFormState)
@@ -72,19 +75,24 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
     
     setFormData(prevData => {
       if (isChecked) {
-        // Добавляем значение, если его еще нет в массиве
         return {
           ...prevData,
           [category]: prevData[category].includes(value) ? prevData[category] : [...prevData[category], value]
         }
       } else {
-        // Удаляем значение из массива
         return {
           ...prevData,
           [category]: prevData[category].filter(id => id !== value)
         }
       }
     })
+  }
+
+  const filterList = (list, searchTerm) => {
+    if (!searchTerm) return list;
+    return list.filter(item => 
+      item.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
   }
 
   const handleSubmit = async (e) => {
@@ -120,12 +128,10 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
       setSuccess(true)
       setFormData(initialFormState)
       
-      // Уведомляем родительский компонент об успешном создании/обновлении
       if (onSubmitSuccess) {
         onSubmitSuccess(responseData)
       }
       
-      // Показываем сообщение об успехе на 3 секунды
       setTimeout(() => {
         setSuccess(false)
       }, 3000)
@@ -225,7 +231,7 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
         </div>
         
         <div className="form-group">
-          <label htmlFor="source_link">Ссылка на источник:</label>
+          <label htmlFor="source_link">Детальная ссылка на источник:</label>
           <input
             id="source_link"
             name="source_link"
@@ -233,31 +239,55 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
             value={formData.source_link}
             onChange={handleInputChange}
             required
+            placeholder="https://example.com/article"
           />
         </div>
         
         <div className="form-group">
-          <label>Регионы:</label>
+          <label>Источники:</label>
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Поиск источников..."
+              value={sourceSearch}
+              onChange={(e) => setSourceSearch(e.target.value)}
+              className="search-input"
+            />
+          </div>
           <div className="checkbox-group">
-            {references.regions.map(region => (
-              <div key={region.id} className="checkbox-item">
+            {filterList(references.sources, sourceSearch).map(source => (
+              <div key={source.id} className="checkbox-item">
                 <input
                   type="checkbox"
-                  id={`region-${region.id}`}
-                  value={region.id}
-                  checked={formData.region_ids.includes(region.id)}
-                  onChange={(e) => handleCheckboxChange(e, 'region_ids')}
+                  id={`source-${source.id}`}
+                  value={source.id}
+                  checked={formData.source_ids.includes(source.id)}
+                  onChange={(e) => handleCheckboxChange(e, 'source_ids')}
                 />
-                <label htmlFor={`region-${region.id}`}>{region.name}</label>
+                <label htmlFor={`source-${source.id}`}>
+                  {source.name} {source.url ? <span className="source-url">({source.url})</span> : ''}
+                </label>
               </div>
             ))}
+            {filterList(references.sources, sourceSearch).length === 0 && (
+              <div className="no-results">Ничего не найдено</div>
+            )}
           </div>
         </div>
         
         <div className="form-group">
           <label>Направления:</label>
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Поиск направлений..."
+              value={directionSearch}
+              onChange={(e) => setDirectionSearch(e.target.value)}
+              className="search-input"
+            />
+          </div>
           <div className="checkbox-group">
-            {references.directions.map(direction => (
+            {filterList(references.directions, directionSearch).map(direction => (
               <div key={direction.id} className="checkbox-item">
                 <input
                   type="checkbox"
@@ -269,13 +299,25 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
                 <label htmlFor={`direction-${direction.id}`}>{direction.name}</label>
               </div>
             ))}
+            {filterList(references.directions, directionSearch).length === 0 && (
+              <div className="no-results">Ничего не найдено</div>
+            )}
           </div>
         </div>
         
         <div className="form-group">
           <label>Организации:</label>
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Поиск организаций..."
+              value={organizationSearch}
+              onChange={(e) => setOrganizationSearch(e.target.value)}
+              className="search-input"
+            />
+          </div>
           <div className="checkbox-group">
-            {references.organizations.map(organization => (
+            {filterList(references.organizations, organizationSearch).map(organization => (
               <div key={organization.id} className="checkbox-item">
                 <input
                   type="checkbox"
@@ -287,13 +329,25 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
                 <label htmlFor={`organization-${organization.id}`}>{organization.name}</label>
               </div>
             ))}
+            {filterList(references.organizations, organizationSearch).length === 0 && (
+              <div className="no-results">Ничего не найдено</div>
+            )}
           </div>
         </div>
         
         <div className="form-group">
           <label>Люди:</label>
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Поиск людей..."
+              value={personSearch}
+              onChange={(e) => setPersonSearch(e.target.value)}
+              className="search-input"
+            />
+          </div>
           <div className="checkbox-group">
-            {references.people.map(person => (
+            {filterList(references.people, personSearch).map(person => (
               <div key={person.id} className="checkbox-item">
                 <input
                   type="checkbox"
@@ -305,6 +359,9 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
                 <label htmlFor={`person-${person.id}`}>{person.name}</label>
               </div>
             ))}
+            {filterList(references.people, personSearch).length === 0 && (
+              <div className="no-results">Ничего не найдено</div>
+            )}
           </div>
         </div>
         

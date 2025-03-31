@@ -1,16 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 import logging
 from app.db.session import get_db
 from app.schemas.references import (
     TechnologyTypeResponse, DevelopmentStageResponse, RegionResponse,
-    OrganizationResponse, PersonResponse, DirectionResponse,
-    ReferenceCreate, ReferenceUpdate
+    OrganizationResponse, PersonResponse, DirectionResponse, SourceResponse,
+    ReferenceCreate, ReferenceUpdate, SourceCreate, SourceUpdate
 )
 from app.db.models.references import (
     TechnologyType, DevelopmentStage, Region,
-    Organization, Person, Direction
+    Organization, Person, Direction, Source
 )
 
 router = APIRouter(prefix="/api")
@@ -158,14 +158,18 @@ def delete_region(item_id: int, db: Session = Depends(get_db)):
 @router.get("/organizations/", response_model=List[OrganizationResponse])
 @router.get("/references/organizations", response_model=List[OrganizationResponse])
 def get_organizations(db: Session = Depends(get_db)):
-    items = db.query(Organization).all()
+    items = db.query(Organization).options(joinedload(Organization.region)).all()
     logger.info(f"Запрошены организации. Найдено: {len(items)} записей")
     return items
 
 @router.post("/organizations/", response_model=OrganizationResponse)
 @router.post("/references/organizations", response_model=OrganizationResponse)
 def create_organization(item: ReferenceCreate, db: Session = Depends(get_db)):
-    db_item = Organization(name=item.name, description=item.description)
+    db_item = Organization(
+        name=item.name, 
+        description=item.description,
+        region_id=item.region_id
+    )
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
@@ -182,6 +186,8 @@ def update_organization(item_id: int, item: ReferenceUpdate, db: Session = Depen
     db_item.name = item.name
     if item.description is not None:
         db_item.description = item.description
+    if item.region_id is not None:
+        db_item.region_id = item.region_id
     
     db.commit()
     db.refresh(db_item)
@@ -290,4 +296,52 @@ def delete_direction(item_id: int, db: Session = Depends(get_db)):
     db.delete(db_item)
     db.commit()
     logger.info(f"Удалено направление с ID {item_id}")
+    return None
+
+# Маршруты для источников
+@router.get("/sources/", response_model=List[SourceResponse])
+@router.get("/references/sources", response_model=List[SourceResponse])
+def get_sources(db: Session = Depends(get_db)):
+    items = db.query(Source).all()
+    logger.info(f"Запрошены источники. Найдено: {len(items)} записей")
+    return items
+
+@router.post("/sources/", response_model=SourceResponse)
+@router.post("/references/sources", response_model=SourceResponse)
+def create_source(item: SourceCreate, db: Session = Depends(get_db)):
+    db_item = Source(name=item.name, description=item.description, url=item.url)
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    logger.info(f"Создан новый источник: {item.name}")
+    return db_item
+
+@router.put("/sources/{item_id}", response_model=SourceResponse)
+@router.put("/references/sources/{item_id}", response_model=SourceResponse)
+def update_source(item_id: int, item: SourceUpdate, db: Session = Depends(get_db)):
+    db_item = db.query(Source).filter(Source.id == item_id).first()
+    if db_item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Источник не найден")
+    
+    db_item.name = item.name
+    if item.description is not None:
+        db_item.description = item.description
+    if item.url is not None:
+        db_item.url = item.url
+    
+    db.commit()
+    db.refresh(db_item)
+    logger.info(f"Обновлен источник с ID {item_id}: {item.name}")
+    return db_item
+
+@router.delete("/sources/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/references/sources/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_source(item_id: int, db: Session = Depends(get_db)):
+    db_item = db.query(Source).filter(Source.id == item_id).first()
+    if db_item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Источник не найден")
+    
+    db.delete(db_item)
+    db.commit()
+    logger.info(f"Удален источник с ID {item_id}")
     return None 

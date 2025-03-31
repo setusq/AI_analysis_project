@@ -1,7 +1,7 @@
-from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy import Column, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.base import Base
-from app.db.models.research import research_region, research_organization, research_person, research_direction
+from app.db.models.research import research_organization, research_person, research_direction
 
 class TechnologyType(Base):
     __tablename__ = 'technology_type'
@@ -30,8 +30,8 @@ class Region(Base):
     name = Column(String(100), nullable=False, unique=True)
     description = Column(Text, nullable=True)
     
-    # Связь с исследованиями
-    research = relationship("Research", secondary=research_region, back_populates="regions")
+    # Оставляем связь с организациями
+    organizations = relationship("Organization", back_populates="region")
 
 class Organization(Base):
     __tablename__ = 'organization'
@@ -39,9 +39,13 @@ class Organization(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False, unique=True)
     description = Column(Text, nullable=True)
+    organization_type = Column(String(100), nullable=True)
+    region_id = Column(Integer, ForeignKey("region.id"), nullable=True)
     
     # Связь с исследованиями
     research = relationship("Research", secondary=research_organization, back_populates="organizations")
+    # Связь с регионом
+    region = relationship("Region", back_populates="organizations")
 
 class Person(Base):
     __tablename__ = 'person'
@@ -61,4 +65,13 @@ class Direction(Base):
     description = Column(Text, nullable=True)
     
     # Связь с исследованиями
-    research = relationship("Research", secondary=research_direction, back_populates="directions") 
+    research = relationship("Research", secondary=research_direction, back_populates="directions")
+
+class Source(Base):
+    __tablename__ = 'source'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    url = Column(String(255), nullable=True)
+    source_type = Column(String(100), nullable=True) 

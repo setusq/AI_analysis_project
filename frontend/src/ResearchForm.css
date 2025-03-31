@@ -101,19 +101,29 @@
 .checkbox-item {
   margin-bottom: 8px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .checkbox-item input[type="checkbox"] {
   width: auto;
   margin-right: 10px;
+  margin-top: 3px;
+  flex-shrink: 0;
 }
 
 .checkbox-item label {
-  display: inline;
-  margin-bottom: 0;
-  font-weight: normal;
-  cursor: pointer;
+  margin: 0;
+  padding-left: 0;
+  font-size: 0.95rem;
+  display: inline-block;
+  text-align: left;
+}
+
+.source-url {
+  font-size: 0.85rem;
+  color: #666;
+  margin-left: 5px;
+  font-style: italic;
 }
 
 .form-actions {
@@ -202,4 +212,30 @@
     font-size: 14px;
     padding: 8px;
   }
+}
+
+/* Стили для поиска */
+.search-box {
+  margin-bottom: 10px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.search-input:focus {
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+  outline: none;
+}
+
+.no-results {
+  padding: 8px;
+  color: #666;
+  font-style: italic;
 } 

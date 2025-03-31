@@ -3,12 +3,13 @@ from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 # Таблицы связей для многие-ко-многим
-research_region = Table(
-    'research_region',
-    Base.metadata,
-    Column('research_id', Integer, ForeignKey('research.id')),
-    Column('region_id', Integer, ForeignKey('region.id'))
-)
+# Убираем таблицу research_region
+# research_region = Table(
+#     'research_region',
+#     Base.metadata,
+#     Column('research_id', Integer, ForeignKey('research.id')),
+#     Column('region_id', Integer, ForeignKey('region.id'))
+# )
 
 research_organization = Table(
     'research_organization',
@@ -31,6 +32,13 @@ research_direction = Table(
     Column('direction_id', Integer, ForeignKey('direction.id'))
 )
 
+research_source = Table(
+    'research_source',
+    Base.metadata,
+    Column('research_id', Integer, ForeignKey('research.id')),
+    Column('source_id', Integer, ForeignKey('source.id'))
+)
+
 class Research(Base):
     __tablename__ = 'research'
     
@@ -38,7 +46,7 @@ class Research(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
     start_date = Column(Date, nullable=False)
-    source_link = Column(String(255), nullable=False)
+    source_link = Column(String(255), nullable=False)  # Возвращаем поле source_link для детальной ссылки
     
     # Внешние ключи для связей один-ко-многим
     technology_type_id = Column(Integer, ForeignKey('technology_type.id'), nullable=False)
@@ -49,7 +57,9 @@ class Research(Base):
     development_stage = relationship("DevelopmentStage", back_populates="research")
     
     # Связи многие-ко-многим
-    regions = relationship("Region", secondary=research_region, back_populates="research")
+    # Удаляем связь с регионами
+    # regions = relationship("Region", secondary=research_region, back_populates="research")
     organizations = relationship("Organization", secondary=research_organization, back_populates="research")
     people = relationship("Person", secondary=research_person, back_populates="research")
-    directions = relationship("Direction", secondary=research_direction, back_populates="research") 
+    directions = relationship("Direction", secondary=research_direction, back_populates="research")
+    sources = relationship("Source", secondary=research_source, backref="research") 

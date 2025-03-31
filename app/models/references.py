@@ -49,4 +49,12 @@ class Direction(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
 
-    research = relationship("Research", secondary="research_direction", back_populates="directions") 
+    research = relationship("Research", secondary="research_direction", back_populates="directions")
+
+class Source(Base):
+    __tablename__ = "source"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+    description = Column(String, nullable=True)
+    url = Column(String, nullable=True) 

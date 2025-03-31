@@ -5,7 +5,7 @@ import logging
 from app.db.session import get_db
 from app.schemas.research import ResearchCreate, ResearchResponse, ResearchFilter, ResearchUpdate
 from app.db.models.research import Research
-from app.db.models.references import TechnologyType, DevelopmentStage, Region, Organization, Person, Direction
+from app.db.models.references import TechnologyType, DevelopmentStage, Organization, Person, Direction, Source
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
@@ -20,17 +20,12 @@ def create_research(research: ResearchCreate, db: Session = Depends(get_db)):
             technology_type_id=research.technology_type_id,
             development_stage_id=research.development_stage_id,
             start_date=research.start_date,
-            source_link=research.source_link
+            source_link=research.source_link  # Используем source_link вместо source_id
         )
         
         db.add(db_research)
         db.commit()
         db.refresh(db_research)
-        
-        # Добавляем связи с регионами
-        if research.region_ids and len(research.region_ids) > 0:
-            regions = db.query(Region).filter(Region.id.in_(research.region_ids)).all()
-            db_research.regions = regions
         
         # Добавляем связи с организациями
         if research.organization_ids and len(research.organization_ids) > 0:
@@ -46,6 +41,11 @@ def create_research(research: ResearchCreate, db: Session = Depends(get_db)):
         if research.direction_ids and len(research.direction_ids) > 0:
             directions = db.query(Direction).filter(Direction.id.in_(research.direction_ids)).all()
             db_research.directions = directions
+            
+        # Добавляем связи с источниками
+        if research.source_ids and len(research.source_ids) > 0:
+            sources = db.query(Source).filter(Source.id.in_(research.source_ids)).all()
+            db_research.sources = sources
         
         db.commit()
         db.refresh(db_research)
@@ -74,12 +74,7 @@ def update_research(research_id: int, research: ResearchUpdate, db: Session = De
         db_research.technology_type_id = research.technology_type_id
         db_research.development_stage_id = research.development_stage_id
         db_research.start_date = research.start_date
-        db_research.source_link = research.source_link
-        
-        # Обновляем связи с регионами
-        if research.region_ids is not None:
-            regions = db.query(Region).filter(Region.id.in_(research.region_ids)).all()
-            db_research.regions = regions
+        db_research.source_link = research.source_link  # Используем source_link вместо source_id
         
         # Обновляем связи с организациями
         if research.organization_ids is not None:
@@ -95,6 +90,11 @@ def update_research(research_id: int, research: ResearchUpdate, db: Session = De
         if research.direction_ids is not None:
             directions = db.query(Direction).filter(Direction.id.in_(research.direction_ids)).all()
             db_research.directions = directions
+            
+        # Обновляем связи с источниками
+        if research.source_ids is not None:
+            sources = db.query(Source).filter(Source.id.in_(research.source_ids)).all()
+            db_research.sources = sources
         
         db.commit()
         db.refresh(db_research)
@@ -116,10 +116,10 @@ def get_research_list(
     name: Optional[str] = None,
     technology_type_id: Optional[int] = None,
     development_stage_id: Optional[int] = None,
-    region_id: Optional[int] = None,
     organization_id: Optional[int] = None,
     person_id: Optional[int] = None,
     direction_id: Optional[int] = None,
+    source_id: Optional[int] = None,  # Добавляем фильтр по источнику
     db: Session = Depends(get_db)
 ):
     try:
@@ -135,9 +135,6 @@ def get_research_list(
         if development_stage_id:
             query = query.filter(Research.development_stage_id == development_stage_id)
             
-        if region_id:
-            query = query.join(Research.regions).filter(Region.id == region_id)
-            
         if organization_id:
             query = query.join(Research.organizations).filter(Organization.id == organization_id)
             
@@ -146,6 +143,9 @@ def get_research_list(
             
         if direction_id:
             query = query.join(Research.directions).filter(Direction.id == direction_id)
+            
+        if source_id:
+            query = query.filter(Research.source_id == source_id)
         
         research_list = query.all()
         logger.info(f"Запрошен список исследований. Найдено: {len(research_list)} записей")

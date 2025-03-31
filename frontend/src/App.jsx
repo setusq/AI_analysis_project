@@ -15,7 +15,8 @@ function App() {
     regions: [],
     organizations: [],
     people: [],
-    directions: []
+    directions: [],
+    sources: []
   })
   const [editingResearch, setEditingResearch] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -34,6 +35,7 @@ function App() {
         const organizationsRes = await fetch(`${API_BASE_URL}/references/organizations`)
         const peopleRes = await fetch(`${API_BASE_URL}/references/people`)
         const directionsRes = await fetch(`${API_BASE_URL}/references/directions`)
+        const sourcesRes = await fetch(`${API_BASE_URL}/references/sources`)
         
         // Проверяем ответы и получаем JSON данные
         if (!technologyTypesRes.ok) throw new Error(`Ошибка загрузки типов технологий: ${technologyTypesRes.status}`)
@@ -42,6 +44,7 @@ function App() {
         if (!organizationsRes.ok) throw new Error(`Ошибка загрузки организаций: ${organizationsRes.status}`)
         if (!peopleRes.ok) throw new Error(`Ошибка загрузки людей: ${peopleRes.status}`)
         if (!directionsRes.ok) throw new Error(`Ошибка загрузки направлений: ${directionsRes.status}`)
+        if (!sourcesRes.ok) throw new Error(`Ошибка загрузки источников: ${sourcesRes.status}`)
         
         // Получаем JSON данные из ответов
         const technologyTypes = await technologyTypesRes.json()
@@ -50,10 +53,11 @@ function App() {
         const organizations = await organizationsRes.json()
         const people = await peopleRes.json()
         const directions = await directionsRes.json()
+        const sources = await sourcesRes.json()
         
         console.log('Загружены данные справочников:', {
           technologyTypes, developmentStages, regions, 
-          organizations, people, directions
+          organizations, people, directions, sources
         })
         
         // Устанавливаем данные в состояние
@@ -63,7 +67,8 @@ function App() {
           regions,
           organizations,
           people,
-          directions
+          directions,
+          sources
         })
       } catch (err) {
         console.error('Ошибка при загрузке справочных данных:', err)
@@ -76,7 +81,8 @@ function App() {
           regions: [],
           organizations: [],
           people: [],
-          directions: []
+          directions: [],
+          sources: []
         })
       } finally {
         setIsLoading(false)

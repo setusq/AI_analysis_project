@@ -165,10 +165,16 @@ function ResearchList({ onEditResearch }) {
       )
     }
     
-    // Фильтр по региону
+    // Фильтр по региону (с учетом регионов организаций)
     if (filters.region) {
+      const regionId = parseInt(filters.region)
       filtered = filtered.filter(item => 
-        item.regions && item.regions.some(region => region.id === parseInt(filters.region))
+        // Прямые регионы исследования
+        (item.regions && item.regions.some(region => region.id === regionId)) ||
+        // Регионы организаций
+        (item.organizations && item.organizations.some(org => 
+          org.region && org.region.id === regionId
+        ))
       )
     }
     
@@ -296,35 +302,68 @@ function ResearchList({ onEditResearch }) {
           {filteredList.map(research => (
             <div key={research.id} className="research-card">
               <h3>{research.name}</h3>
-              <div className="research-type">
-                <span className="label">Тип технологии:</span> 
-                <span>{research.technology_type?.name || 'Не указан'}</span>
+              
+              <div className="research-content">
+                <div className="research-main-info">
+                  <div className="research-item">
+                    <span className="research-label">Тип технологии:</span> 
+                    <span className="research-value">{research.technology_type?.name || 'Не указан'}</span>
+                  </div>
+                  <div className="research-item">
+                    <span className="research-label">Направление:</span> 
+                    <span className="research-value">
+                      {research.directions && research.directions.length > 0
+                        ? research.directions.map(dir => dir.name).join(', ')
+                        : 'Не указано'}
+                    </span>
+                  </div>
+                  <div className="research-item">
+                    <span className="research-label">Этап:</span> 
+                    <span className="research-value">{research.development_stage?.name || 'Не указан'}</span>
+                  </div>
+                  <div className="research-item">
+                    <span className="research-label">Дата:</span> 
+                    <span className="research-value">{new Date(research.start_date).toLocaleDateString()}</span>
+                  </div>
+                  <div className="research-item">
+                    <span className="research-label">Регион:</span> 
+                    <span className="research-value">
+                      {(research.regions && research.regions.length > 0) || 
+                       (research.organizations && research.organizations.some(org => org.region)) ?
+                        <>
+                          {/* Прямые регионы исследования */}
+                          {research.regions && research.regions.length > 0 && 
+                            research.regions.map(region => region.name).join(', ')}
+                          
+                          {/* Разделитель если есть оба типа регионов */}
+                          {research.regions && research.regions.length > 0 && 
+                           research.organizations && research.organizations.some(org => org.region) && ', '}
+                          
+                          {/* Регионы организаций */}
+                          {research.organizations && research.organizations
+                            .filter(org => org.region)
+                            .map(org => org.region.name)
+                            .filter((name, index, self) => self.indexOf(name) === index) // Удаляем дубликаты
+                            .join(', ')}
+                        </>
+                        : 'Не указан'}
+                    </span>
+                  </div>
+                </div>
+                
+                <p className="research-description">
+                  {research.description.length > 100 
+                    ? `${research.description.substring(0, 100)}...` 
+                    : research.description}
+                </p>
               </div>
-              <div className="research-stage">
-                <span className="label">Этап:</span> 
-                <span>{research.development_stage?.name || 'Не указан'}</span>
-              </div>
-              <div className="research-regions">
-                <span className="label">Регионы:</span> 
-                <span>{research.regions && research.regions.length > 0 
-                  ? research.regions.map(region => region.name).join(', ')
-                  : 'Не указаны'}</span>
-              </div>
-              <div className="research-date">
-                <span className="label">Дата:</span> 
-                <span>{new Date(research.start_date).toLocaleDateString()}</span>
-              </div>
-              <p className="research-description">
-                {research.description.length > 100 
-                  ? `${research.description.substring(0, 100)}...` 
-                  : research.description}
-              </p>
+              
               <div className="research-actions">
                 <button 
                   className="view-button" 
                   onClick={() => handleViewDetails(research)}
                 >
-                  Просмотр
+                  Подробнее
                 </button>
                 <button 
                   className="edit-button"
@@ -345,73 +384,149 @@ function ResearchList({ onEditResearch }) {
             
             <h2>{selectedResearch.name}</h2>
             
-            <div className="modal-field">
-              <span className="label">Описание:</span>
+            <div className="modal-section">
+              <h3>Описание</h3>
               <p>{selectedResearch.description}</p>
             </div>
             
-            <div className="modal-field">
-              <span className="label">Тип технологии:</span>
-              <p>{selectedResearch.technology_type?.name || 'Не указан'}</p>
+            <div className="modal-section">
+              <h3>Основная информация</h3>
+              <div className="modal-grid">
+                <div className="modal-field">
+                  <span className="label">Тип технологии:</span>
+                  <p>{selectedResearch.technology_type?.name || 'Не указан'}</p>
+                </div>
+                
+                <div className="modal-field">
+                  <span className="label">Направления:</span>
+                  <div>
+                    {selectedResearch.directions && selectedResearch.directions.length > 0
+                      ? selectedResearch.directions.map(direction => (
+                          <p key={direction.id}>{direction.name}</p>
+                        ))
+                      : <p>Не указаны</p>
+                    }
+                  </div>
+                </div>
+                
+                <div className="modal-field">
+                  <span className="label">Этап разработки:</span>
+                  <p>{selectedResearch.development_stage?.name || 'Не указан'}</p>
+                </div>
+                
+                <div className="modal-field">
+                  <span className="label">Дата начала:</span>
+                  <p>{new Date(selectedResearch.start_date).toLocaleDateString()}</p>
+                </div>
+              </div>
             </div>
             
-            <div className="modal-field">
-              <span className="label">Этап разработки:</span>
-              <p>{selectedResearch.development_stage?.name || 'Не указан'}</p>
+            <div className="modal-section">
+              <h3>Регионы</h3>
+              <div className="modal-field regions-list">
+                {(selectedResearch.regions && selectedResearch.regions.length > 0) || 
+                 (selectedResearch.organizations && selectedResearch.organizations.some(org => org.region)) ? (
+                  <>
+                    {/* Прямые регионы исследования */}
+                    {selectedResearch.regions && selectedResearch.regions.map(region => (
+                      <div key={`direct-${region.id}`} className="region-item">{region.name}</div>
+                    ))}
+                    
+                    {/* Регионы из организаций */}
+                    {selectedResearch.organizations && 
+                      selectedResearch.organizations
+                        .filter(org => org.region) // Только организации с регионами
+                        .map(org => (
+                          <div key={`org-${org.id}-region-${org.region.id}`} className="region-item org-region-item">
+                            {org.region.name} (от {org.name})
+                          </div>
+                        ))
+                    }
+                  </>
+                ) : (
+                  <p>Не указаны</p>
+                )}
+              </div>
             </div>
             
-            <div className="modal-field">
-              <span className="label">Дата начала:</span>
-              <p>{new Date(selectedResearch.start_date).toLocaleDateString()}</p>
-            </div>
-            
-            <div className="modal-field">
-              <span className="label">Источник:</span>
-              <p>
-                <a 
-                  href={selectedResearch.source_link} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  {selectedResearch.source_link}
-                </a>
-              </p>
-            </div>
-            
-            <div className="modal-field">
-              <span className="label">Регионы:</span>
-              <p>
-                {selectedResearch.regions && selectedResearch.regions.length > 0
-                  ? selectedResearch.regions.map(region => region.name).join(', ')
-                  : 'Не указаны'}
-              </p>
-            </div>
-            
-            <div className="modal-field">
-              <span className="label">Организации:</span>
-              <p>
+            <div className="modal-section">
+              <h3>Организации</h3>
+              <div className="modal-field organizations-list">
                 {selectedResearch.organizations && selectedResearch.organizations.length > 0
-                  ? selectedResearch.organizations.map(org => org.name).join(', ')
-                  : 'Не указаны'}
-              </p>
+                  ? selectedResearch.organizations.map(org => (
+                      <div key={org.id} className="organization-item">
+                        <div className="organization-header">
+                          <span className="organization-name">{org.name}</span>
+                          {org.organization_type && (
+                            <>
+                              <span className="organization-separator">|</span>
+                              <span className="organization-type">{org.organization_type}</span>
+                            </>
+                          )}
+                        </div>
+                        {org.description && (
+                          <div className="organization-description">{org.description}</div>
+                        )}
+                      </div>
+                    ))
+                  : <p>Не указаны</p>
+                }
+              </div>
             </div>
             
-            <div className="modal-field">
-              <span className="label">Люди:</span>
-              <p>
+            <div className="modal-section">
+              <h3>Источники</h3>
+              <div className="modal-field">
+                {selectedResearch.sources && selectedResearch.sources.length > 0
+                  ? selectedResearch.sources.map(source => (
+                      <div key={source.id} className="source-item">
+                        <div className="source-header">
+                          <span className="source-name">{source.name}</span>
+                          {source.source_type && (
+                            <>
+                              <span className="source-separator">|</span>
+                              <span className="source-type">{source.source_type}</span>
+                            </>
+                          )}
+                        </div>
+                        
+                        {source.description && (
+                          <p className="source-description">{source.description}</p>
+                        )}
+                        
+                        {selectedResearch.source_link && (
+                          <p className="source-detail-link">
+                            <span className="source-link-label">Ссылка на источник: </span>
+                            <a href={selectedResearch.source_link} target="_blank" rel="noopener noreferrer">
+                              {selectedResearch.source_link}
+                            </a>
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  : <p>Не указаны</p>
+                }
+              </div>
+            </div>
+            
+            <div className="modal-section">
+              <h3>Участники</h3>
+              <div className="people-list">
                 {selectedResearch.people && selectedResearch.people.length > 0
-                  ? selectedResearch.people.map(person => person.name).join(', ')
-                  : 'Не указаны'}
-              </p>
-            </div>
-            
-            <div className="modal-field">
-              <span className="label">Направления:</span>
-              <p>
-                {selectedResearch.directions && selectedResearch.directions.length > 0
-                  ? selectedResearch.directions.map(direction => direction.name).join(', ')
-                  : 'Не указаны'}
-              </p>
+                  ? selectedResearch.people.map(person => (
+                      <div key={person.id} className="person-item">
+                        <span className="person-name">{person.name}</span>
+                        {person.description && (
+                          <>
+                            <span className="person-separator">|</span>
+                            <span className="person-description">{person.description}</span>
+                          </>
+                        )}
+                      </div>
+                    ))
+                  : <p>Не указаны</p>
+                }
+              </div>
             </div>
             
             <div className="modal-actions">

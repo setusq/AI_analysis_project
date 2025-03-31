@@ -11,7 +11,35 @@ const CATEGORIES = [
   { id: 'regions', name: 'Регионы' },
   { id: 'organizations', name: 'Организации' },
   { id: 'people', name: 'Люди' },
-  { id: 'directions', name: 'Направления' }
+  { id: 'directions', name: 'Направления' },
+  { id: 'sources', name: 'Источники' }
+]
+
+// Типы источников
+const SOURCE_TYPES = [
+  'Научный журнал',
+  'Новостной портал',
+  'Федеральный научный центр',
+  'Образовательное учреждение',
+  'Государственное учреждение',
+  'Репозиторий научных работ',
+  'Научная социальная сеть',
+  'Научная электронная библиотека',
+  'Научное издательство',
+  'Другое'
+]
+
+// Типы организаций
+const ORGANIZATION_TYPES = [
+  'Государственная компания',
+  'Частная компания',
+  'Университет',
+  'Научно-исследовательский институт',
+  'Федеральное агентство',
+  'Международная организация',
+  'Стартап',
+  'Некоммерческая организация',
+  'Другое'
 ]
 
 function ReferenceManager() {
@@ -20,13 +48,45 @@ function ReferenceManager() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [newItemName, setNewItemName] = useState('')
+  const [newItemUrl, setNewItemUrl] = useState('')
+  const [newItemDescription, setNewItemDescription] = useState('')
+  const [newItemRegionId, setNewItemRegionId] = useState('')
+  const [newItemSourceType, setNewItemSourceType] = useState('')
+  const [newItemOrganizationType, setNewItemOrganizationType] = useState('')
   const [editingItem, setEditingItem] = useState(null)
   const [editName, setEditName] = useState('')
+  const [editUrl, setEditUrl] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editRegionId, setEditRegionId] = useState('')
+  const [editSourceType, setEditSourceType] = useState('')
+  const [editOrganizationType, setEditOrganizationType] = useState('')
+  const [regions, setRegions] = useState([])
   
   // Получение данных при изменении активной вкладки
   useEffect(() => {
     fetchReferenceData(activeTab)
+    
+    // Если текущая вкладка - организации, загрузим список регионов
+    if (activeTab === 'organizations') {
+      fetchRegions()
+    }
   }, [activeTab])
+  
+  // Получение списка регионов для выбора
+  const fetchRegions = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/references/regions`)
+      
+      if (!response.ok) {
+        throw new Error(`Ошибка загрузки регионов: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      setRegions(result || [])
+    } catch (err) {
+      console.error('Ошибка при загрузке регионов:', err)
+    }
+  }
 
   // Получение данных справочника
   const fetchReferenceData = async (category) => {
@@ -64,15 +124,31 @@ function ReferenceManager() {
     }
     
     try {
+      const itemData = { 
+        name: newItemName,
+        description: newItemDescription
+      }
+
+      // Если это источник, добавляем URL и тип источника
+      if (activeTab === 'sources') {
+        itemData.url = newItemUrl
+        itemData.source_type = newItemSourceType
+      }
+      
+      // Если это организация, добавляем ID региона и тип организации
+      if (activeTab === 'organizations') {
+        if (newItemRegionId) {
+          itemData.region_id = parseInt(newItemRegionId)
+        }
+        itemData.organization_type = newItemOrganizationType
+      }
+
       const response = await fetch(`${API_BASE_URL}/references/${activeTab}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          name: newItemName,
-          description: ''
-        }),
+        body: JSON.stringify(itemData),
       })
       
       if (!response.ok) {
@@ -82,6 +158,11 @@ function ReferenceManager() {
       // Обновляем список после добавления
       fetchReferenceData(activeTab)
       setNewItemName('')
+      setNewItemUrl('')
+      setNewItemDescription('')
+      setNewItemRegionId('')
+      setNewItemSourceType('')
+      setNewItemOrganizationType('')
       
     } catch (err) {
       console.error('Ошибка при добавлении записи:', err)
@@ -93,12 +174,32 @@ function ReferenceManager() {
   const handleEditClick = (item) => {
     setEditingItem(item)
     setEditName(item.name)
+    setEditDescription(item.description || '')
+    if (activeTab === 'sources') {
+      setEditUrl(item.url || '')
+      setEditSourceType(item.source_type || '')
+    } else {
+      setEditUrl('')
+      setEditSourceType('')
+    }
+    
+    if (activeTab === 'organizations') {
+      setEditRegionId(item.region_id || '')
+      setEditOrganizationType(item.organization_type || '')
+    } else {
+      setEditOrganizationType('')
+    }
   }
 
   // Отмена редактирования
   const handleCancelEdit = () => {
     setEditingItem(null)
     setEditName('')
+    setEditUrl('')
+    setEditDescription('')
+    setEditRegionId('')
+    setEditSourceType('')
+    setEditOrganizationType('')
   }
 
   // Сохранение отредактированного элемента
@@ -109,15 +210,33 @@ function ReferenceManager() {
     }
 
     try {
+      const itemData = { 
+        name: editName,
+        description: editDescription
+      }
+
+      // Если это источник, добавляем URL и тип источника
+      if (activeTab === 'sources') {
+        itemData.url = editUrl
+        itemData.source_type = editSourceType
+      }
+      
+      // Если это организация, добавляем ID региона и тип организации
+      if (activeTab === 'organizations') {
+        if (editRegionId) {
+          itemData.region_id = parseInt(editRegionId)
+        } else {
+          itemData.region_id = null
+        }
+        itemData.organization_type = editOrganizationType
+      }
+
       const response = await fetch(`${API_BASE_URL}/references/${activeTab}/${editingItem.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          name: editName,
-          description: editingItem.description || ''
-        }),
+        body: JSON.stringify(itemData),
       })
       
       if (!response.ok) {
@@ -128,11 +247,23 @@ function ReferenceManager() {
       fetchReferenceData(activeTab)
       setEditingItem(null)
       setEditName('')
+      setEditUrl('')
+      setEditDescription('')
+      setEditRegionId('')
+      setEditSourceType('')
+      setEditOrganizationType('')
       
     } catch (err) {
       console.error('Ошибка при обновлении записи:', err)
       setError(err.message || 'Произошла ошибка при обновлении записи')
     }
+  }
+
+  // Получение названия региона по ID
+  const getRegionName = (regionId) => {
+    if (!regionId) return 'Не указан';
+    const region = regions.find(r => r.id === regionId);
+    return region ? region.name : 'Неизвестный регион';
   }
 
   return (
@@ -168,7 +299,24 @@ function ReferenceManager() {
             <ul>
               {data.map(item => (
                 <li key={item.id} className="reference-item">
-                  <span className="item-name">{item.name}</span>
+                  <div className="item-details">
+                    <span className="item-name">{item.name}</span>
+                    {activeTab === 'organizations' && item.region_id && (
+                      <div className="item-region">Регион: {getRegionName(item.region_id)}</div>
+                    )}
+                    {activeTab === 'organizations' && item.organization_type && (
+                      <div className="item-type">Тип: {item.organization_type}</div>
+                    )}
+                    {activeTab === 'sources' && item.source_type && (
+                      <div className="item-type">Тип: {item.source_type}</div>
+                    )}
+                    {item.description && <div className="item-description">{item.description}</div>}
+                    {activeTab === 'sources' && item.url && (
+                      <div className="item-url">
+                        <a href={item.url} target="_blank" rel="noopener noreferrer">{item.url}</a>
+                      </div>
+                    )}
+                  </div>
                   <div className="item-actions">
                     <button 
                       onClick={() => handleEditClick(item)}
@@ -207,6 +355,94 @@ function ReferenceManager() {
                 />
               </div>
               
+              <div className="form-group">
+                <label htmlFor="editDescription">
+                  Описание:
+                </label>
+                <textarea
+                  id="editDescription"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows="3"
+                  placeholder="Введите описание"
+                />
+              </div>
+              
+              {activeTab === 'sources' && (
+                <>
+                  <div className="form-group">
+                    <label htmlFor="editUrl">
+                      URL:
+                    </label>
+                    <input
+                      type="url"
+                      id="editUrl"
+                      value={editUrl}
+                      onChange={(e) => setEditUrl(e.target.value)}
+                      placeholder="https://example.com"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="editSourceType">
+                      Тип источника:
+                    </label>
+                    <select
+                      id="editSourceType"
+                      value={editSourceType}
+                      onChange={(e) => setEditSourceType(e.target.value)}
+                    >
+                      <option value="">Выберите тип источника</option>
+                      {SOURCE_TYPES.map(type => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+              
+              {activeTab === 'organizations' && (
+                <div className="form-group">
+                  <label htmlFor="editRegionId">
+                    Регион:
+                  </label>
+                  <select
+                    id="editRegionId"
+                    value={editRegionId}
+                    onChange={(e) => setEditRegionId(e.target.value)}
+                  >
+                    <option value="">Выберите регион</option>
+                    {regions.map(region => (
+                      <option key={region.id} value={region.id}>
+                        {region.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              {activeTab === 'organizations' && (
+                <div className="form-group">
+                  <label htmlFor="editOrganizationType">
+                    Тип организации:
+                  </label>
+                  <select
+                    id="editOrganizationType"
+                    value={editOrganizationType}
+                    onChange={(e) => setEditOrganizationType(e.target.value)}
+                  >
+                    <option value="">Выберите тип организации</option>
+                    {ORGANIZATION_TYPES.map(type => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
               <div className="form-buttons">
                 <button 
                   onClick={handleSaveEdit}
@@ -237,6 +473,94 @@ function ReferenceManager() {
                   required
                 />
               </div>
+
+              <div className="form-group">
+                <label htmlFor="description">
+                  Описание:
+                </label>
+                <textarea
+                  id="description"
+                  value={newItemDescription}
+                  onChange={(e) => setNewItemDescription(e.target.value)}
+                  rows="3"
+                  placeholder="Введите описание"
+                />
+              </div>
+
+              {activeTab === 'sources' && (
+                <>
+                  <div className="form-group">
+                    <label htmlFor="url">
+                      URL:
+                    </label>
+                    <input
+                      type="url"
+                      id="url"
+                      value={newItemUrl}
+                      onChange={(e) => setNewItemUrl(e.target.value)}
+                      placeholder="https://example.com"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="sourceType">
+                      Тип источника:
+                    </label>
+                    <select
+                      id="sourceType"
+                      value={newItemSourceType}
+                      onChange={(e) => setNewItemSourceType(e.target.value)}
+                    >
+                      <option value="">Выберите тип источника</option>
+                      {SOURCE_TYPES.map(type => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+              
+              {activeTab === 'organizations' && (
+                <div className="form-group">
+                  <label htmlFor="regionId">
+                    Регион:
+                  </label>
+                  <select
+                    id="regionId"
+                    value={newItemRegionId}
+                    onChange={(e) => setNewItemRegionId(e.target.value)}
+                  >
+                    <option value="">Выберите регион</option>
+                    {regions.map(region => (
+                      <option key={region.id} value={region.id}>
+                        {region.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              {activeTab === 'organizations' && (
+                <div className="form-group">
+                  <label htmlFor="organizationType">
+                    Тип организации:
+                  </label>
+                  <select
+                    id="organizationType"
+                    value={newItemOrganizationType}
+                    onChange={(e) => setNewItemOrganizationType(e.target.value)}
+                  >
+                    <option value="">Выберите тип организации</option>
+                    {ORGANIZATION_TYPES.map(type => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               
               <button 
                 type="submit" 
