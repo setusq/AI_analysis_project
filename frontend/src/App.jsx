@@ -3,6 +3,7 @@ import './App.css'
 import ResearchForm from './ResearchForm'
 import ReferenceManager from './ReferenceManager'
 import ResearchList from './ResearchList'
+import Dashboard from './components/Dashboard'
 
 // API базовый URL
 const API_BASE_URL = 'http://localhost:8001/api'
@@ -122,6 +123,12 @@ function App() {
             Главная
           </button>
           <button 
+            className={activeTab === 'dashboard' ? 'active' : ''} 
+            onClick={() => handleTabChange('dashboard')}
+          >
+            Дашборд
+          </button>
+          <button 
             className={activeTab === 'add-research' ? 'active' : ''} 
             onClick={() => {
               setEditingResearch(null)
@@ -151,6 +158,12 @@ function App() {
             {activeTab === 'home' && (
               <div className="home-content">
                 <ResearchList onEditResearch={handleEditResearch} />
+              </div>
+            )}
+            
+            {activeTab === 'dashboard' && (
+              <div className="dashboard-content">
+                <Dashboard />
               </div>
             )}
             

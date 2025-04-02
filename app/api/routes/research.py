@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict
 import logging
 from app.db.session import get_db
 from app.schemas.research import ResearchCreate, ResearchResponse, ResearchFilter, ResearchUpdate
 from app.db.models.research import Research
-from app.db.models.references import TechnologyType, DevelopmentStage, Organization, Person, Direction, Source
+from app.db.models.references import TechnologyType, DevelopmentStage, Organization, Person, Direction, Source, Region
+from sqlalchemy import func
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
@@ -172,4 +173,31 @@ def get_research(research_id: int, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при получении исследования: {str(e)}"
+        )
+
+@router.get("/research/stats/by-region")
+def get_research_by_region_stats(db: Session = Depends(get_db)):
+    try:
+        # Получаем статистику исследований по регионам через организации
+        stats = db.query(
+            Region.name.label("region_name"),
+            func.count(Research.id.distinct()).label("research_count")
+        ).join(
+            Organization, Region.id == Organization.region_id
+        ).join(
+            Organization.research
+        ).group_by(
+            Region.name
+        ).all()
+        
+        # Преобразуем результат в словарь
+        result = [{"region": item.region_name, "count": item.research_count} for item in stats]
+        
+        logger.info(f"Запрошена статистика исследований по регионам. Найдено: {len(result)} записей")
+        return result
+    except Exception as e:
+        logger.error(f"Ошибка при получении статистики по регионам: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при получении статистики по регионам: {str(e)}"
         ) 
