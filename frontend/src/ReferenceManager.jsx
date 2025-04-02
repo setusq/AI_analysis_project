@@ -61,6 +61,7 @@ function ReferenceManager() {
   const [editSourceType, setEditSourceType] = useState('')
   const [editOrganizationType, setEditOrganizationType] = useState('')
   const [regions, setRegions] = useState([])
+  const [searchQuery, setSearchQuery] = useState('')
   
   // Получение данных при изменении активной вкладки
   useEffect(() => {
@@ -259,6 +260,30 @@ function ReferenceManager() {
     }
   }
 
+  // Удаление элемента
+  const handleDeleteItem = async (itemId) => {
+    if (!confirm('Вы уверены, что хотите удалить эту запись?')) {
+      return
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/references/${activeTab}/${itemId}`, {
+        method: 'DELETE',
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Ошибка удаления: ${response.status}`)
+      }
+      
+      // Обновляем список после удаления
+      fetchReferenceData(activeTab)
+      
+    } catch (err) {
+      console.error('Ошибка при удалении записи:', err)
+      setError(err.message || 'Произошла ошибка при удалении записи')
+    }
+  }
+
   // Получение названия региона по ID
   const getRegionName = (regionId) => {
     if (!regionId) return 'Не указан';
@@ -266,16 +291,21 @@ function ReferenceManager() {
     return region ? region.name : 'Неизвестный регион';
   }
 
+  // Фильтрация данных по поисковому запросу
+  const filteredData = data.filter(item => 
+    item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   return (
     <div className="reference-manager">
       <h2>Управление справочниками</h2>
 
       {/* Вкладки */}
-      <div className="reference-tabs">
+      <div className="tabs">
         {CATEGORIES.map(category => (
           <button
             key={category.id}
-            className={activeTab === category.id ? 'active' : ''}
+            className={`tab ${activeTab === category.id ? 'active' : ''}`}
             onClick={() => setActiveTab(category.id)}
           >
             {category.name}
@@ -284,51 +314,54 @@ function ReferenceManager() {
       </div>
 
       {/* Контент */}
-      <div className="reference-content">
-        {/* Список элементов */}
-        <div className="reference-list">
+      <div className="content">
+        <div className="current-items">
           <h3>Текущие записи</h3>
-          
-          {loading ? (
-            <div className="loading">Загрузка данных...</div>
-          ) : error ? (
-            <div className="error-message">{error}</div>
-          ) : data.length === 0 ? (
-            <div>Нет данных</div>
-          ) : (
-            <ul>
-              {data.map(item => (
-                <li key={item.id} className="reference-item">
-                  <div className="item-details">
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="Поиск по названию..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+          </div>
+          <div className="items-list">
+            {loading ? (
+              <p>Загрузка...</p>
+            ) : error ? (
+              <p className="error">{error}</p>
+            ) : filteredData.length === 0 ? (
+              <p>Записей не найдено</p>
+            ) : (
+              filteredData.map(item => (
+                <div key={item.id} className="item">
+                  <div className="item-content">
                     <span className="item-name">{item.name}</span>
-                    {activeTab === 'organizations' && item.region_id && (
-                      <div className="item-region">Регион: {getRegionName(item.region_id)}</div>
+                    {item.description && (
+                      <span className="item-description">{item.description}</span>
                     )}
-                    {activeTab === 'organizations' && item.organization_type && (
-                      <div className="item-type">Тип: {item.organization_type}</div>
+                    {activeTab === 'sources' && item.url && (
+                      <span className="item-url">{item.url}</span>
+                    )}
+                    {activeTab === 'organizations' && item.region && (
+                      <span className="item-region">Регион: {item.region.name}</span>
                     )}
                     {activeTab === 'sources' && item.source_type && (
-                      <div className="item-type">Тип: {item.source_type}</div>
+                      <span className="item-type">Тип: {item.source_type}</span>
                     )}
-                    {item.description && <div className="item-description">{item.description}</div>}
-                    {activeTab === 'sources' && item.url && (
-                      <div className="item-url">
-                        <a href={item.url} target="_blank" rel="noopener noreferrer">{item.url}</a>
-                      </div>
+                    {activeTab === 'organizations' && item.organization_type && (
+                      <span className="item-type">Тип: {item.organization_type}</span>
                     )}
                   </div>
                   <div className="item-actions">
-                    <button 
-                      onClick={() => handleEditClick(item)}
-                      className="edit-button"
-                    >
-                      Редактировать
-                    </button>
+                    <button onClick={() => handleEditClick(item)}>Редактировать</button>
+                    <button onClick={() => handleDeleteItem(item.id)}>Удалить</button>
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
+                </div>
+              ))
+            )}
+          </div>
         </div>
         
         {/* Форма добавления или редактирования */}
