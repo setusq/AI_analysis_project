@@ -8,12 +8,16 @@ class ReferenceBase(BaseModel):
 
 class ReferenceCreate(ReferenceBase):
     region_id: Optional[int] = None
+    organization_type: Optional[str] = None
+    source_type: Optional[str] = None
 
 class ReferenceUpdate(BaseModel):
     name: str
     description: Optional[str] = None
     code: Optional[str] = None
     region_id: Optional[int] = None
+    organization_type: Optional[str] = None
+    source_type: Optional[str] = None
 
 class ReferenceResponse(ReferenceBase):
     id: int

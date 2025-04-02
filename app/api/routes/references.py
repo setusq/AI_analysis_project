@@ -6,7 +6,7 @@ from app.db.session import get_db
 from app.schemas.references import (
     TechnologyTypeResponse, DevelopmentStageResponse, RegionResponse,
     OrganizationResponse, PersonResponse, DirectionResponse, SourceResponse,
-    ReferenceCreate, ReferenceUpdate, SourceCreate, SourceUpdate
+    ReferenceCreate, ReferenceUpdate, SourceCreate, SourceUpdate, OrganizationCreate, OrganizationUpdate
 )
 from app.db.models.references import (
     TechnologyType, DevelopmentStage, Region,
@@ -164,11 +164,12 @@ def get_organizations(db: Session = Depends(get_db)):
 
 @router.post("/organizations/", response_model=OrganizationResponse)
 @router.post("/references/organizations", response_model=OrganizationResponse)
-def create_organization(item: ReferenceCreate, db: Session = Depends(get_db)):
+def create_organization(item: OrganizationCreate, db: Session = Depends(get_db)):
     db_item = Organization(
         name=item.name, 
         description=item.description,
-        region_id=item.region_id
+        region_id=item.region_id,
+        organization_type=item.organization_type
     )
     db.add(db_item)
     db.commit()
@@ -178,7 +179,7 @@ def create_organization(item: ReferenceCreate, db: Session = Depends(get_db)):
 
 @router.put("/organizations/{item_id}", response_model=OrganizationResponse)
 @router.put("/references/organizations/{item_id}", response_model=OrganizationResponse)
-def update_organization(item_id: int, item: ReferenceUpdate, db: Session = Depends(get_db)):
+def update_organization(item_id: int, item: OrganizationUpdate, db: Session = Depends(get_db)):
     db_item = db.query(Organization).filter(Organization.id == item_id).first()
     if db_item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Организация не найдена")
@@ -188,6 +189,8 @@ def update_organization(item_id: int, item: ReferenceUpdate, db: Session = Depen
         db_item.description = item.description
     if item.region_id is not None:
         db_item.region_id = item.region_id
+    if item.organization_type is not None:
+        db_item.organization_type = item.organization_type
     
     db.commit()
     db.refresh(db_item)
@@ -309,7 +312,12 @@ def get_sources(db: Session = Depends(get_db)):
 @router.post("/sources/", response_model=SourceResponse)
 @router.post("/references/sources", response_model=SourceResponse)
 def create_source(item: SourceCreate, db: Session = Depends(get_db)):
-    db_item = Source(name=item.name, description=item.description, url=item.url)
+    db_item = Source(
+        name=item.name,
+        description=item.description,
+        url=item.url,
+        source_type=item.source_type
+    )
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
@@ -328,6 +336,8 @@ def update_source(item_id: int, item: SourceUpdate, db: Session = Depends(get_db
         db_item.description = item.description
     if item.url is not None:
         db_item.url = item.url
+    if item.source_type is not None:
+        db_item.source_type = item.source_type
     
     db.commit()
     db.refresh(db_item)
