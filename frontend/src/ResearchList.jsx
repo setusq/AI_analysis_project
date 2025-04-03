@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './ResearchList.css'
 
 function ResearchList({ onEditResearch }) {
@@ -25,6 +25,9 @@ function ResearchList({ onEditResearch }) {
     direction: ''
   })
 
+  // Ссылка на модальное окно
+  const modalRef = useRef(null)
+  
   useEffect(() => {
     fetchResearch()
     fetchReferences()
@@ -128,8 +131,14 @@ function ResearchList({ onEditResearch }) {
   }
 
   const handleViewDetails = (research) => {
-    setSelectedResearch(research)
-    setShowModal(true)
+    setSelectedResearch(research);
+    setShowModal(true);
+    // Блокировка прокрутки основного документа при открытии модального окна
+    document.body.style.overflow = 'hidden';
+    document.body.classList.add('modal-open');
+
+    // Запоминаем текущую позицию прокрутки для восстановления при закрытии
+    document.body.dataset.scrollY = window.scrollY;
   }
 
   const handleEditClick = (research) => {
@@ -197,6 +206,76 @@ function ResearchList({ onEditResearch }) {
       direction: ''
     })
   }
+
+  // Закрытие модального окна и разблокировка прокрутки
+  const handleCloseModal = () => {
+    setShowModal(false);
+    // Восстановление прокрутки основного документа
+    document.body.style.overflow = 'auto';
+    document.body.classList.remove('modal-open');
+    
+    // Восстанавливаем позицию прокрутки
+    if (document.body.dataset.scrollY) {
+      window.scrollTo(0, parseInt(document.body.dataset.scrollY || '0'));
+    }
+  };
+
+  // Обработчик событий колесика мыши для модального окна
+  const handleWheel = (e) => {
+    e.stopPropagation();
+    
+    // Не предотвращаем стандартное поведение прокрутки, 
+    // чтобы окно могло прокручиваться
+    // Но останавливаем всплытие события, чтобы оно не передавалось внешней странице
+  }
+
+  // Обработчик события касания (для мобильных устройств)
+  const handleTouchMove = (e) => {
+    // Останавливаем всплытие события касания,
+    // чтобы страница за модальным окном не прокручивалась
+    e.stopPropagation();
+  }
+  
+  // Функция для принудительного обновления скроллбара после открытия модального окна
+  const forceScrollbarUpdate = (element) => {
+    if (!element) return;
+    
+    // Сохраняем текущую позицию прокрутки
+    const scrollTop = element.scrollTop;
+    
+    // Временно изменяем высоту содержимого, чтобы заставить браузер пересчитать скроллбар
+    element.style.maxHeight = '79vh';
+    setTimeout(() => {
+      element.style.maxHeight = '80vh';
+      // Восстанавливаем позицию прокрутки
+      element.scrollTop = scrollTop;
+    }, 10);
+  };
+  
+  // Устанавливаем и убираем обработчик при открытии/закрытии модального окна
+  useEffect(() => {
+    const modal = modalRef.current;
+    
+    if (showModal && modal) {
+      // При открытии модального окна устанавливаем фокус на него для скролла
+      setTimeout(() => {
+        modal.focus();
+        // Прокручиваем в начало при каждом открытии
+        modal.scrollTop = 0;
+        // Запускаем обновление скроллбара
+        forceScrollbarUpdate(modal);
+      }, 50);
+      
+      // Добавляем обработчики для разных событий прокрутки
+      modal.addEventListener('wheel', handleWheel);
+      modal.addEventListener('touchmove', handleTouchMove);
+      
+      return () => {
+        modal.removeEventListener('wheel', handleWheel);
+        modal.removeEventListener('touchmove', handleTouchMove);
+      };
+    }
+  }, [showModal]);
 
   if (loading) {
     return <div className="loading">Загрузка исследований...</div>
@@ -378,154 +457,187 @@ function ResearchList({ onEditResearch }) {
       )}
       
       {showModal && selectedResearch && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <button className="close-button" onClick={() => setShowModal(false)}>×</button>
+        <div className="modal-overlay" onClick={handleCloseModal} style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          width: '100vw',
+          height: '100vh'
+        }}>
+          <div 
+            className="modal-content modal-narrow" 
+            onClick={e => e.stopPropagation()} 
+            tabIndex={0}
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            onScroll={(e) => e.stopPropagation()}
+            style={{
+              width: '600px',
+              maxWidth: '600px',
+              backgroundColor: 'white',
+              padding: '25px',
+              borderRadius: '8px',
+              overflowY: 'scroll',
+              maxHeight: '80vh',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+            }}
+          >
+            <button className="close-button" onClick={handleCloseModal}>×</button>
             
             <h2>{selectedResearch.name}</h2>
             
-            <div className="modal-section">
-              <h3>Описание</h3>
-              <p>{selectedResearch.description}</p>
-            </div>
-            
-            <div className="modal-section">
-              <h3>Основная информация</h3>
-              <div className="modal-grid">
-                <div className="modal-field">
-                  <span className="label">Тип технологии:</span>
-                  <p>{selectedResearch.technology_type?.name || 'Не указан'}</p>
-                </div>
-                
-                <div className="modal-field">
-                  <span className="label">Направления:</span>
-                  <div>
-                    {selectedResearch.directions && selectedResearch.directions.length > 0
-                      ? selectedResearch.directions.map(direction => (
-                          <p key={direction.id}>{direction.name}</p>
-                        ))
-                      : <p>Не указаны</p>
-                    }
+            <div className="modal-sections-container">
+              <div className="modal-section">
+                <h3>Описание</h3>
+                <p>{selectedResearch.description}</p>
+              </div>
+              
+              <div className="modal-section">
+                <h3>Основная информация</h3>
+                <div className="modal-grid">
+                  <div className="modal-field">
+                    <span className="label">Тип технологии:</span>
+                    <p>{selectedResearch.technology_type?.name || 'Не указан'}</p>
+                  </div>
+                  
+                  <div className="modal-field">
+                    <span className="label">Направления:</span>
+                    <div>
+                      {selectedResearch.directions && selectedResearch.directions.length > 0
+                        ? selectedResearch.directions.map(direction => (
+                            <p key={direction.id}>{direction.name}</p>
+                          ))
+                        : <p>Не указаны</p>
+                      }
+                    </div>
+                  </div>
+                  
+                  <div className="modal-field">
+                    <span className="label">Этап разработки:</span>
+                    <p>{selectedResearch.development_stage?.name || 'Не указан'}</p>
+                  </div>
+                  
+                  <div className="modal-field">
+                    <span className="label">Дата начала:</span>
+                    <p>{new Date(selectedResearch.start_date).toLocaleDateString()}</p>
                   </div>
                 </div>
-                
-                <div className="modal-field">
-                  <span className="label">Этап разработки:</span>
-                  <p>{selectedResearch.development_stage?.name || 'Не указан'}</p>
-                </div>
-                
-                <div className="modal-field">
-                  <span className="label">Дата начала:</span>
-                  <p>{new Date(selectedResearch.start_date).toLocaleDateString()}</p>
+              </div>
+              
+              <div className="modal-section">
+                <h3>Регионы</h3>
+                <div className="modal-field regions-list">
+                  {(selectedResearch.regions && selectedResearch.regions.length > 0) || 
+                   (selectedResearch.organizations && selectedResearch.organizations.some(org => org.region)) ? (
+                    <>
+                      {/* Прямые регионы исследования */}
+                      {selectedResearch.regions && selectedResearch.regions.map(region => (
+                        <div key={`direct-${region.id}`} className="region-item">{region.name}</div>
+                      ))}
+                      
+                      {/* Регионы из организаций */}
+                      {selectedResearch.organizations && 
+                        selectedResearch.organizations
+                          .filter(org => org.region) // Только организации с регионами
+                          .map(org => (
+                            <div key={`org-${org.id}-region-${org.region.id}`} className="region-item org-region-item">
+                              {org.region.name} (от {org.name})
+                            </div>
+                          ))
+                      }
+                    </>
+                  ) : (
+                    <p>Не указаны</p>
+                  )}
                 </div>
               </div>
-            </div>
-            
-            <div className="modal-section">
-              <h3>Регионы</h3>
-              <div className="modal-field regions-list">
-                {(selectedResearch.regions && selectedResearch.regions.length > 0) || 
-                 (selectedResearch.organizations && selectedResearch.organizations.some(org => org.region)) ? (
-                  <>
-                    {/* Прямые регионы исследования */}
-                    {selectedResearch.regions && selectedResearch.regions.map(region => (
-                      <div key={`direct-${region.id}`} className="region-item">{region.name}</div>
-                    ))}
-                    
-                    {/* Регионы из организаций */}
-                    {selectedResearch.organizations && 
-                      selectedResearch.organizations
-                        .filter(org => org.region) // Только организации с регионами
-                        .map(org => (
-                          <div key={`org-${org.id}-region-${org.region.id}`} className="region-item org-region-item">
-                            {org.region.name} (от {org.name})
+              
+              <div className="modal-section">
+                <h3>Организации</h3>
+                <div className="modal-field organizations-list">
+                  {selectedResearch.organizations && selectedResearch.organizations.length > 0
+                    ? selectedResearch.organizations.map(org => (
+                        <div key={org.id} className="organization-item">
+                          <div className="organization-header">
+                            <span className="organization-name">{org.name}</span>
+                            {org.organization_type && (
+                              <>
+                                <span className="organization-separator">|</span>
+                                <span className="organization-type">{org.organization_type}</span>
+                              </>
+                            )}
                           </div>
-                        ))
-                    }
-                  </>
-                ) : (
-                  <p>Не указаны</p>
-                )}
+                          {org.description && (
+                            <div className="organization-description">{org.description}</div>
+                          )}
+                        </div>
+                      ))
+                    : <p>Не указаны</p>
+                  }
+                </div>
               </div>
-            </div>
-            
-            <div className="modal-section">
-              <h3>Организации</h3>
-              <div className="modal-field organizations-list">
-                {selectedResearch.organizations && selectedResearch.organizations.length > 0
-                  ? selectedResearch.organizations.map(org => (
-                      <div key={org.id} className="organization-item">
-                        <div className="organization-header">
-                          <span className="organization-name">{org.name}</span>
-                          {org.organization_type && (
+              
+              <div className="modal-section">
+                <h3>Источники</h3>
+                <div className="modal-field">
+                  {selectedResearch.sources && selectedResearch.sources.length > 0
+                    ? selectedResearch.sources.map(source => (
+                        <div key={source.id} className="source-item">
+                          <div className="source-header">
+                            <span className="source-name">{source.name}</span>
+                            {source.source_type && (
+                              <>
+                                <span className="source-separator">|</span>
+                                <span className="source-type">{source.source_type}</span>
+                              </>
+                            )}
+                          </div>
+                          
+                          {source.description && (
+                            <p className="source-description">{source.description}</p>
+                          )}
+                          
+                          {selectedResearch.source_link && (
+                            <p className="source-detail-link">
+                              <span className="source-link-label">Ссылка на источник: </span>
+                              <a href={selectedResearch.source_link} target="_blank" rel="noopener noreferrer">
+                                {selectedResearch.source_link}
+                              </a>
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    : <p>Не указаны</p>
+                  }
+                </div>
+              </div>
+              
+              <div className="modal-section">
+                <h3>Участники</h3>
+                <div className="people-list">
+                  {selectedResearch.people && selectedResearch.people.length > 0
+                    ? selectedResearch.people.map(person => (
+                        <div key={person.id} className="person-item">
+                          <span className="person-name">{person.name}</span>
+                          {person.description && (
                             <>
-                              <span className="organization-separator">|</span>
-                              <span className="organization-type">{org.organization_type}</span>
+                              <span className="person-separator">|</span>
+                              <span className="person-description">{person.description}</span>
                             </>
                           )}
                         </div>
-                        {org.description && (
-                          <div className="organization-description">{org.description}</div>
-                        )}
-                      </div>
-                    ))
-                  : <p>Не указаны</p>
-                }
-              </div>
-            </div>
-            
-            <div className="modal-section">
-              <h3>Источники</h3>
-              <div className="modal-field">
-                {selectedResearch.sources && selectedResearch.sources.length > 0
-                  ? selectedResearch.sources.map(source => (
-                      <div key={source.id} className="source-item">
-                        <div className="source-header">
-                          <span className="source-name">{source.name}</span>
-                          {source.source_type && (
-                            <>
-                              <span className="source-separator">|</span>
-                              <span className="source-type">{source.source_type}</span>
-                            </>
-                          )}
-                        </div>
-                        
-                        {source.description && (
-                          <p className="source-description">{source.description}</p>
-                        )}
-                        
-                        {selectedResearch.source_link && (
-                          <p className="source-detail-link">
-                            <span className="source-link-label">Ссылка на источник: </span>
-                            <a href={selectedResearch.source_link} target="_blank" rel="noopener noreferrer">
-                              {selectedResearch.source_link}
-                            </a>
-                          </p>
-                        )}
-                      </div>
-                    ))
-                  : <p>Не указаны</p>
-                }
-              </div>
-            </div>
-            
-            <div className="modal-section">
-              <h3>Участники</h3>
-              <div className="people-list">
-                {selectedResearch.people && selectedResearch.people.length > 0
-                  ? selectedResearch.people.map(person => (
-                      <div key={person.id} className="person-item">
-                        <span className="person-name">{person.name}</span>
-                        {person.description && (
-                          <>
-                            <span className="person-separator">|</span>
-                            <span className="person-description">{person.description}</span>
-                          </>
-                        )}
-                      </div>
-                    ))
-                  : <p>Не указаны</p>
-                }
+                      ))
+                    : <p>Не указаны</p>
+                  }
+                </div>
               </div>
             </div>
             
@@ -533,8 +645,8 @@ function ResearchList({ onEditResearch }) {
               <button 
                 className="edit-button"
                 onClick={() => {
-                  handleEditClick(selectedResearch)
-                  setShowModal(false)
+                  handleEditClick(selectedResearch);
+                  handleCloseModal();
                 }}
               >
                 Редактировать

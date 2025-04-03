@@ -176,28 +176,245 @@ def get_research(research_id: int, db: Session = Depends(get_db)):
         )
 
 @router.get("/research/stats/by-region")
-def get_research_by_region_stats(db: Session = Depends(get_db)):
+def get_research_by_region_stats(
+    regions: Optional[str] = None,
+    tech_types: Optional[str] = None,
+    stages: Optional[str] = None,
+    directions: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
     try:
-        # Получаем статистику исследований по регионам через организации
-        stats = db.query(
+        # Создаем базовый запрос
+        query = db.query(
             Region.name.label("region_name"),
             func.count(Research.id.distinct()).label("research_count")
         ).join(
-            Organization, Region.id == Organization.region_id
+            Organization, Region.id == Organization.region_id, isouter=True
         ).join(
-            Organization.research
-        ).group_by(
-            Region.name
-        ).all()
+            Organization.research, isouter=True
+        )
         
-        # Преобразуем результат в словарь
-        result = [{"region": item.region_name, "count": item.research_count} for item in stats]
+        # Применяем фильтры
+        if tech_types:
+            tech_type_list = tech_types.split(',')
+            query = query.join(
+                TechnologyType, Research.technology_type_id == TechnologyType.id, isouter=True
+            ).filter(TechnologyType.name.in_(tech_type_list))
+            
+        if stages:
+            stage_list = stages.split(',')
+            query = query.join(
+                DevelopmentStage, Research.development_stage_id == DevelopmentStage.id, isouter=True
+            ).filter(DevelopmentStage.name.in_(stage_list))
+            
+        if directions:
+            direction_list = directions.split(',')
+            query = query.join(
+                Research.directions, isouter=True
+            ).filter(Direction.name.in_(direction_list))
         
-        logger.info(f"Запрошена статистика исследований по регионам. Найдено: {len(result)} записей")
-        return result
+        # Если указаны регионы, фильтруем результат только по указанным регионам
+        if regions:
+            region_list = regions.split(',')
+            query = query.filter(Region.name.in_(region_list))
+        
+        # Группируем и получаем результат
+        try:
+            stats = query.group_by(Region.name).all()
+            
+            # Преобразуем результат в словарь
+            result = [{"region": item.region_name, "count": item.research_count} for item in stats]
+            
+            logger.info(f"Запрошена статистика исследований по регионам. Найдено: {len(result)} записей")
+            return result
+        except Exception as query_error:
+            logger.error(f"Ошибка выполнения запроса статистики по регионам: {str(query_error)}")
+            # Возвращаем пустой список вместо ошибки, чтобы не блокировать работу интерфейса
+            return []
     except Exception as e:
         logger.error(f"Ошибка при получении статистики по регионам: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка при получении статистики по регионам: {str(e)}"
-        ) 
+        # Возвращаем пустой список вместо ошибки, чтобы не блокировать работу интерфейса
+        return []
+
+@router.get("/research/stats/by-tech-type")
+def get_research_by_tech_type_stats(
+    regions: Optional[str] = None,
+    tech_types: Optional[str] = None,
+    stages: Optional[str] = None,
+    directions: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    try:
+        # Создаем базовый запрос
+        query = db.query(
+            TechnologyType.name.label("tech_type_name"),
+            func.count(Research.id.distinct()).label("research_count")
+        ).join(
+            Research, Research.technology_type_id == TechnologyType.id, isouter=True
+        )
+        
+        # Применяем фильтры
+        if regions:
+            region_list = regions.split(',')
+            query = query.join(
+                Research.organizations, isouter=True
+            ).join(
+                Organization.region, isouter=True
+            ).filter(Region.name.in_(region_list))
+            
+        if stages:
+            stage_list = stages.split(',')
+            query = query.join(
+                DevelopmentStage, Research.development_stage_id == DevelopmentStage.id, isouter=True
+            ).filter(DevelopmentStage.name.in_(stage_list))
+            
+        if directions:
+            direction_list = directions.split(',')
+            query = query.join(
+                Research.directions, isouter=True
+            ).filter(Direction.name.in_(direction_list))
+        
+        # Если указаны типы технологий, фильтруем результат только по указанным типам
+        if tech_types:
+            tech_type_list = tech_types.split(',')
+            query = query.filter(TechnologyType.name.in_(tech_type_list))
+        
+        # Группируем и получаем результат
+        try:
+            stats = query.group_by(TechnologyType.name).all()
+            
+            # Преобразуем результат в словарь
+            result = [{"tech_type": item.tech_type_name, "count": item.research_count} for item in stats]
+            
+            logger.info(f"Запрошена статистика исследований по типам технологий. Найдено: {len(result)} записей")
+            return result
+        except Exception as query_error:
+            logger.error(f"Ошибка выполнения запроса статистики по типам технологий: {str(query_error)}")
+            # Возвращаем пустой список вместо ошибки
+            return []
+    except Exception as e:
+        logger.error(f"Ошибка при получении статистики по типам технологий: {str(e)}")
+        # Возвращаем пустой список вместо ошибки
+        return []
+
+@router.get("/research/stats/by-stage")
+def get_research_by_stage_stats(
+    regions: Optional[str] = None,
+    tech_types: Optional[str] = None,
+    stages: Optional[str] = None,
+    directions: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    try:
+        # Создаем базовый запрос
+        query = db.query(
+            DevelopmentStage.name.label("stage_name"),
+            func.count(Research.id.distinct()).label("research_count")
+        ).join(
+            Research, Research.development_stage_id == DevelopmentStage.id, isouter=True
+        )
+        
+        # Применяем фильтры
+        if regions:
+            region_list = regions.split(',')
+            query = query.join(
+                Research.organizations, isouter=True
+            ).join(
+                Organization.region, isouter=True
+            ).filter(Region.name.in_(region_list))
+            
+        if tech_types:
+            tech_type_list = tech_types.split(',')
+            query = query.join(
+                TechnologyType, Research.technology_type_id == TechnologyType.id, isouter=True
+            ).filter(TechnologyType.name.in_(tech_type_list))
+            
+        if directions:
+            direction_list = directions.split(',')
+            query = query.join(
+                Research.directions, isouter=True
+            ).filter(Direction.name.in_(direction_list))
+        
+        # Если указаны этапы разработки, фильтруем результат только по указанным этапам
+        if stages:
+            stage_list = stages.split(',')
+            query = query.filter(DevelopmentStage.name.in_(stage_list))
+        
+        # Группируем и получаем результат
+        try:
+            stats = query.group_by(DevelopmentStage.name).all()
+            
+            # Преобразуем результат в словарь
+            result = [{"stage": item.stage_name, "count": item.research_count} for item in stats]
+            
+            logger.info(f"Запрошена статистика исследований по этапам разработки. Найдено: {len(result)} записей")
+            return result
+        except Exception as query_error:
+            logger.error(f"Ошибка выполнения запроса статистики по этапам разработки: {str(query_error)}")
+            # Возвращаем пустой список вместо ошибки
+            return []
+    except Exception as e:
+        logger.error(f"Ошибка при получении статистики по этапам разработки: {str(e)}")
+        # Возвращаем пустой список вместо ошибки
+        return []
+
+@router.get("/research/stats/by-direction")
+def get_research_by_direction_stats(
+    regions: Optional[str] = None,
+    tech_types: Optional[str] = None,
+    stages: Optional[str] = None,
+    directions: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    try:
+        # Создаем базовый запрос
+        query = db.query(
+            Direction.name.label("direction_name"),
+            func.count(Research.id.distinct()).label("research_count")
+        ).join(
+            Direction.research, isouter=True
+        )
+        
+        # Применяем фильтры
+        if regions:
+            region_list = regions.split(',')
+            query = query.join(
+                Research.organizations, isouter=True
+            ).join(
+                Organization.region, isouter=True
+            ).filter(Region.name.in_(region_list))
+            
+        if tech_types:
+            tech_type_list = tech_types.split(',')
+            query = query.join(
+                TechnologyType, Research.technology_type_id == TechnologyType.id, isouter=True
+            ).filter(TechnologyType.name.in_(tech_type_list))
+            
+        if stages:
+            stage_list = stages.split(',')
+            query = query.join(
+                DevelopmentStage, Research.development_stage_id == DevelopmentStage.id, isouter=True
+            ).filter(DevelopmentStage.name.in_(stage_list))
+        
+        # Если указаны направления, фильтруем результат только по указанным направлениям
+        if directions:
+            direction_list = directions.split(',')
+            query = query.filter(Direction.name.in_(direction_list))
+        
+        # Группируем и получаем результат
+        try:
+            stats = query.group_by(Direction.name).all()
+            
+            # Преобразуем результат в словарь
+            result = [{"direction": item.direction_name, "count": item.research_count} for item in stats]
+            
+            logger.info(f"Запрошена статистика исследований по направлениям. Найдено: {len(result)} записей")
+            return result
+        except Exception as query_error:
+            logger.error(f"Ошибка выполнения запроса статистики по направлениям: {str(query_error)}")
+            # Возвращаем пустой список вместо ошибки
+            return []
+    except Exception as e:
+        logger.error(f"Ошибка при получении статистики по направлениям: {str(e)}")
+        # Возвращаем пустой список вместо ошибки
+        return [] 
