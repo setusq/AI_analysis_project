@@ -27,6 +27,11 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
   const [organizationSearch, setOrganizationSearch] = useState('')
   const [personSearch, setPersonSearch] = useState('')
   const [sourceSearch, setSourceSearch] = useState('')
+  
+  // Для CSV импорта
+  const [csvFile, setCsvFile] = useState(null)
+  const [importStatus, setImportStatus] = useState(null)
+  const [isImporting, setIsImporting] = useState(false)
 
   useEffect(() => {
     if (editingResearch) {
@@ -143,6 +148,90 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
       setIsSubmitting(false)
     }
   }
+  
+  // Обработчики для CSV импорта
+  const handleCsvFileChange = (e) => {
+    setCsvFile(e.target.files[0])
+  }
+  
+  const handleCsvImport = async () => {
+    if (!csvFile) {
+      setError('Пожалуйста, выберите CSV файл')
+      return
+    }
+    
+    setIsImporting(true)
+    setError(null)
+    setImportStatus(null)
+    
+    try {
+      const formData = new FormData()
+      formData.append('file', csvFile)
+      
+      console.log('Отправка CSV файла на сервер...', csvFile.name, csvFile.size + ' bytes')
+      
+      const response = await fetch(`${API_BASE_URL}/research/import-csv`, {
+        method: 'POST',
+        body: formData
+      })
+      
+      // Получаем текст ответа для отладки
+      const responseText = await response.text()
+      console.log('Ответ сервера (raw):', responseText)
+      
+      if (!response.ok) {
+        console.error('Ошибка при импорте CSV:', response.status, responseText)
+        throw new Error(`Ошибка импорта: ${response.status} ${responseText}`)
+      }
+      
+      // Парсим JSON
+      let results
+      try {
+        results = JSON.parse(responseText)
+        console.log('Результаты импорта:', results)
+      } catch (parseError) {
+        console.error('Ошибка при парсинге ответа JSON:', parseError)
+        throw new Error(`Ошибка при обработке ответа сервера: ${parseError.message}`)
+      }
+      
+      // Установка статуса импорта
+      setImportStatus({
+        success: results.success,
+        errors: results.errors,
+        newRefs: results.new_refs
+      })
+      
+      // Уведомляем родительский компонент о необходимости обновить данные
+      if (onSubmitSuccess) {
+        onSubmitSuccess()
+      }
+      
+      setCsvFile(null)
+      if (document.getElementById('csv-file-input')) {
+        document.getElementById('csv-file-input').value = null
+      }
+      
+    } catch (err) {
+      console.error('Ошибка при импорте CSV:', err)
+      setError(err.message || 'Произошла ошибка при импорте CSV')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+  
+  const handleDownloadTemplate = () => {
+    try {
+      console.log('Запрос шаблона CSV...')
+      setError(null)
+      
+      // Используем прямой URL и window.open для скачивания
+      window.open(`${API_BASE_URL}/research/export-csv-template`, '_blank');
+      
+    } catch (err) {
+      console.error('Ошибка при скачивании шаблона:', err)
+      setError('Не удалось скачать шаблон CSV. Попробуйте позже.')
+    }
+  }
 
   return (
     <div className="research-form-container">
@@ -157,6 +246,87 @@ function ResearchForm({ references, editingResearch, onSubmitSuccess }) {
           {error}
         </div>
       )}
+      
+      {/* CSV импорт секция */}
+      <div className="csv-import-section">
+        <h3>Импорт из CSV</h3>
+        <div className="csv-controls">
+          <button 
+            type="button" 
+            className="template-button" 
+            onClick={handleDownloadTemplate}
+          >
+            Скачать шаблон CSV
+          </button>
+          
+          <div className="file-upload-container">
+            <input
+              id="csv-file-input"
+              type="file"
+              accept=".csv"
+              onChange={handleCsvFileChange}
+              className="file-input"
+            />
+            <button 
+              type="button" 
+              className="import-button" 
+              disabled={!csvFile || isImporting}
+              onClick={handleCsvImport}
+            >
+              {isImporting ? 'Импорт...' : 'Импортировать из CSV'}
+            </button>
+          </div>
+        </div>
+        
+        {importStatus && (
+          <div className="import-results">
+            <div className="import-summary">
+              Успешно импортировано: {importStatus.success} исследований
+            </div>
+            
+            {importStatus.errors && importStatus.errors.length > 0 && (
+              <div className="import-errors">
+                <h4>Ошибки ({importStatus.errors.length}):</h4>
+                <ul>
+                  {importStatus.errors.map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {importStatus.newRefs && Object.entries(importStatus.newRefs).some(([_, items]) => items.length > 0) && (
+              <div className="new-references">
+                <h4>Добавлены новые записи в справочники:</h4>
+                {importStatus.newRefs.organizations && importStatus.newRefs.organizations.length > 0 && (
+                  <div>
+                    <strong>Организации:</strong> {importStatus.newRefs.organizations.join(', ')}
+                  </div>
+                )}
+                {importStatus.newRefs.people && importStatus.newRefs.people.length > 0 && (
+                  <div>
+                    <strong>Люди:</strong> {importStatus.newRefs.people.join(', ')}
+                  </div>
+                )}
+                {importStatus.newRefs.directions && importStatus.newRefs.directions.length > 0 && (
+                  <div>
+                    <strong>Направления:</strong> {importStatus.newRefs.directions.join(', ')}
+                  </div>
+                )}
+                {importStatus.newRefs.sources && importStatus.newRefs.sources.length > 0 && (
+                  <div>
+                    <strong>Источники:</strong> {importStatus.newRefs.sources.join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      
+      <div className="manual-form-section">
+        <h3>Или заполните форму вручную</h3>
+      </div>
       
       <form className="research-form" onSubmit={handleSubmit}>
         <div className="form-group">

@@ -57,4 +57,6 @@ class Source(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
     description = Column(String, nullable=True)
-    url = Column(String, nullable=True) 
+    url = Column(String, nullable=True)
+    
+    research = relationship("Research", secondary="research_source", back_populates="sources") 

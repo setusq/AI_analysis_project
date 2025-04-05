@@ -31,6 +31,14 @@ research_direction = Table(
     Column('direction_id', Integer, ForeignKey('direction.id'))
 )
 
+# Добавляем таблицу связи для источников
+research_source = Table(
+    'research_source',
+    Base.metadata,
+    Column('research_id', Integer, ForeignKey('research.id')),
+    Column('source_id', Integer, ForeignKey('source.id'))
+)
+
 class Research(Base):
     __tablename__ = "research"
 
@@ -48,4 +56,6 @@ class Research(Base):
     regions = relationship("Region", secondary=research_region, back_populates="research")
     organizations = relationship("Organization", secondary=research_organization, back_populates="research")
     people = relationship("Person", secondary=research_person, back_populates="research")
-    directions = relationship("Direction", secondary=research_direction, back_populates="research") 
+    directions = relationship("Direction", secondary=research_direction, back_populates="research")
+    # Добавляем связь с Source
+    sources = relationship("Source", secondary=research_source, back_populates="research") 

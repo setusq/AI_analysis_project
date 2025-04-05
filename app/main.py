@@ -3,9 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import research_router, references_router
 from app.db.session import engine
 from app.db.base import Base
+from app.database import create_tables
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
+create_tables()  # Создаем таблицы явно
 
 app = FastAPI(
     title="AI Research API",
@@ -20,6 +22,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition", "Content-Type"]  # Важно для скачивания файлов
 )
 
 # Include routers

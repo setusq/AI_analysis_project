@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict
 import logging
@@ -7,6 +7,11 @@ from app.schemas.research import ResearchCreate, ResearchResponse, ResearchFilte
 from app.db.models.research import Research
 from app.db.models.references import TechnologyType, DevelopmentStage, Organization, Person, Direction, Source, Region
 from sqlalchemy import func
+import io
+import csv
+from datetime import datetime
+from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
@@ -158,21 +163,236 @@ def get_research_list(
             detail=f"Ошибка при получении списка исследований: {str(e)}"
         )
 
-@router.get("/research/{research_id}", response_model=ResearchResponse)
-def get_research(research_id: int, db: Session = Depends(get_db)):
+@router.get("/research/export-csv-template")
+def export_csv_template():
+    """
+    Возвращает шаблон CSV файла для импорта исследований
+    """
     try:
-        research = db.query(Research).filter(Research.id == research_id).first()
-        if not research:
-            raise HTTPException(status_code=404, detail="Исследование не найдено")
-        logger.info(f"Запрошено исследование с ID {research_id}")
-        return research
-    except HTTPException:
-        raise
+        # Создаем содержимое CSV файла
+        csv_content = "name,description,technology_type,development_stage,start_date,source_link,organizations,people,directions,sources\n"
+        csv_content += "Название исследования,Описание исследования,Искусственный интеллект,Прототип,01.01.2023,https://example.com/research,\"Google, Microsoft\",\"Илон Маск, Сатья Наделла\",\"Здравоохранение, Образование\",\"IEEE Spectrum, Nature\""
+        
+        # Возвращаем CSV как простой текст
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": "attachment; filename=research_template.csv"
+            }
+        )
     except Exception as e:
-        logger.error(f"Ошибка при получении исследования: {str(e)}")
+        logger.error(f"Ошибка при экспорте шаблона CSV: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка при получении исследования: {str(e)}"
+            detail=f"Ошибка при экспорте шаблона CSV: {str(e)}"
+        )
+
+@router.post("/research/import-csv")
+async def import_research_from_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        logger.info(f"Получен файл для импорта: {file.filename}, размер: {file.size}, content_type: {file.content_type}")
+        
+        contents = await file.read()
+        logger.info(f"Прочитано {len(contents)} байт из файла")
+        
+        # Пробуем декодировать с разными кодировками
+        try:
+            decoded_contents = contents.decode('utf-8-sig')
+            logger.info("Файл успешно декодирован как utf-8-sig")
+        except UnicodeDecodeError:
+            try:
+                decoded_contents = contents.decode('utf-8')
+                logger.info("Файл успешно декодирован как utf-8")
+            except UnicodeDecodeError:
+                try:
+                    decoded_contents = contents.decode('cp1251')
+                    logger.info("Файл успешно декодирован как cp1251")
+                except UnicodeDecodeError:
+                    logger.error("Не удалось декодировать файл ни в одной из кодировок")
+                    raise ValueError("Не удалось декодировать файл. Убедитесь, что файл в формате CSV с кодировкой UTF-8 или CP1251")
+        
+        # Проверяем первые несколько символов для отладки
+        logger.info(f"Первые 100 символов файла: {decoded_contents[:100]}")
+        
+        # Пробуем разные диалекты CSV
+        try:
+            csv_reader = csv.DictReader(io.StringIO(decoded_contents), delimiter=',')
+            # Проверяем заголовки
+            fieldnames = csv_reader.fieldnames
+            if not fieldnames:
+                raise ValueError("Не удалось определить заголовки CSV")
+            
+            logger.info(f"Заголовки CSV: {fieldnames}")
+            
+            # Проверяем обязательные поля
+            required_fields = ['name', 'description']
+            missing_fields = [field for field in required_fields if field not in fieldnames]
+            if missing_fields:
+                raise ValueError(f"В CSV файле отсутствуют обязательные поля: {', '.join(missing_fields)}")
+            
+            results = {
+                "success": 0,
+                "errors": [],
+                "new_refs": {
+                    "organizations": [],
+                    "people": [],
+                    "directions": [],
+                    "sources": []
+                }
+            }
+            
+            for idx, row in enumerate(csv_reader, 1):
+                try:
+                    logger.info(f"Обработка строки {idx}: {row}")
+                    
+                    # Проверка обязательных полей
+                    if not row.get('name'):
+                        raise ValueError("Отсутствует название исследования")
+                    
+                    # Обработка технологии - проверка наличия или создание новой
+                    tech_type = None
+                    if row.get('technology_type'):
+                        tech_type = db.query(TechnologyType).filter(TechnologyType.name == row['technology_type']).first()
+                        if not tech_type:
+                            tech_type = TechnologyType(name=row['technology_type'])
+                            db.add(tech_type)
+                            db.flush()
+                            logger.info(f"Создан новый тип технологии: {row['technology_type']}")
+                    
+                    # Обработка этапа разработки - проверка наличия или создание нового
+                    dev_stage = None
+                    if row.get('development_stage'):
+                        dev_stage = db.query(DevelopmentStage).filter(DevelopmentStage.name == row['development_stage']).first()
+                        if not dev_stage:
+                            dev_stage = DevelopmentStage(name=row['development_stage'])
+                            db.add(dev_stage)
+                            db.flush()
+                            logger.info(f"Создан новый этап разработки: {row['development_stage']}")
+                    
+                    # Обработка даты
+                    start_date = None
+                    if row.get('start_date'):
+                        try:
+                            # Пробуем несколько форматов даты
+                            date_formats = ['%d.%m.%Y', '%Y-%m-%d']
+                            for date_format in date_formats:
+                                try:
+                                    start_date = datetime.strptime(row['start_date'], date_format).date()
+                                    logger.info(f"Успешно распарсена дата: {row['start_date']} -> {start_date}")
+                                    break
+                                except ValueError:
+                                    continue
+                            
+                            if not start_date:
+                                raise ValueError(f"Неверный формат даты. Ожидается ДД.ММ.ГГГГ или ГГГГ-ММ-ДД")
+                        except Exception as e:
+                            raise ValueError(f"Ошибка в формате даты: {str(e)}")
+                    
+                    # Создаем исследование
+                    research = Research(
+                        name=row.get('name', ''),
+                        description=row.get('description', ''),
+                        technology_type_id=tech_type.id if tech_type else None,
+                        development_stage_id=dev_stage.id if dev_stage else None,
+                        start_date=start_date,
+                        source_link=row.get('source_link', '')
+                    )
+                    
+                    db.add(research)
+                    db.flush()
+                    logger.info(f"Создано новое исследование с ID {research.id}, name={research.name}")
+                    
+                    # Обработка организаций
+                    if row.get('organizations'):
+                        organizations = [org.strip() for org in row['organizations'].split(',') if org.strip()]
+                        logger.info(f"Список организаций для добавления: {organizations}")
+                        for org_name in organizations:
+                            organization = db.query(Organization).filter(Organization.name == org_name).first()
+                            if not organization:
+                                organization = Organization(name=org_name)
+                                db.add(organization)
+                                db.flush()
+                                results["new_refs"]["organizations"].append(org_name)
+                                logger.info(f"Создана новая организация: {org_name}")
+                            
+                            research.organizations.append(organization)
+                    
+                    # Обработка людей
+                    if row.get('people'):
+                        people = [person.strip() for person in row['people'].split(',') if person.strip()]
+                        logger.info(f"Список людей для добавления: {people}")
+                        for person_name in people:
+                            person = db.query(Person).filter(Person.name == person_name).first()
+                            if not person:
+                                person = Person(name=person_name)
+                                db.add(person)
+                                db.flush()
+                                results["new_refs"]["people"].append(person_name)
+                                logger.info(f"Создан новый человек: {person_name}")
+                            
+                            research.people.append(person)
+                    
+                    # Обработка направлений
+                    if row.get('directions'):
+                        directions = [direction.strip() for direction in row['directions'].split(',') if direction.strip()]
+                        logger.info(f"Список направлений для добавления: {directions}")
+                        for direction_name in directions:
+                            direction = db.query(Direction).filter(Direction.name == direction_name).first()
+                            if not direction:
+                                direction = Direction(name=direction_name)
+                                db.add(direction)
+                                db.flush()
+                                results["new_refs"]["directions"].append(direction_name)
+                                logger.info(f"Создано новое направление: {direction_name}")
+                            
+                            research.directions.append(direction)
+                    
+                    # Обработка источников
+                    if row.get('sources'):
+                        sources = [source.strip() for source in row['sources'].split(',') if source.strip()]
+                        logger.info(f"Список источников для добавления: {sources}")
+                        for source_name in sources:
+                            source = db.query(Source).filter(Source.name == source_name).first()
+                            if not source:
+                                source = Source(name=source_name)
+                                db.add(source)
+                                db.flush()
+                                results["new_refs"]["sources"].append(source_name)
+                                logger.info(f"Создан новый источник: {source_name}")
+                            
+                            research.sources.append(source)
+                    
+                    results["success"] += 1
+                    
+                except Exception as e:
+                    db.rollback()  # Откатываем транзакцию для текущей строки при ошибке
+                    row_str = ", ".join([f"{k}: {v}" for k, v in row.items()])
+                    error_msg = f"Ошибка в строке {idx}: {row_str}. Причина: {str(e)}"
+                    logger.error(error_msg)
+                    results["errors"].append(error_msg)
+                    # Продолжаем обработку следующей строки
+            
+            # Если были успешные импорты, коммитим транзакцию
+            if results["success"] > 0:
+                db.commit()
+                logger.info(f"Импорт завершен. Успешно импортировано: {results['success']} записей")
+            
+            return results
+            
+        except Exception as csv_error:
+            logger.error(f"Ошибка при обработке CSV: {str(csv_error)}")
+            raise ValueError(f"Ошибка при обработке CSV файла: {str(csv_error)}")
+            
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Ошибка при импорте исследований из CSV: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при импорте исследований из CSV: {str(e)}"
         )
 
 @router.get("/research/stats/by-region")
@@ -417,4 +637,21 @@ def get_research_by_direction_stats(
     except Exception as e:
         logger.error(f"Ошибка при получении статистики по направлениям: {str(e)}")
         # Возвращаем пустой список вместо ошибки
-        return [] 
+        return []
+
+@router.get("/research/{research_id}", response_model=ResearchResponse)
+def get_research(research_id: int, db: Session = Depends(get_db)):
+    try:
+        research = db.query(Research).filter(Research.id == research_id).first()
+        if not research:
+            raise HTTPException(status_code=404, detail="Исследование не найдено")
+        logger.info(f"Запрошено исследование с ID {research_id}")
+        return research
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при получении исследования: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при получении исследования: {str(e)}"
+        ) 
