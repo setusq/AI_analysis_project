@@ -395,6 +395,115 @@ async def import_research_from_csv(
             detail=f"Ошибка при импорте исследований из CSV: {str(e)}"
         )
 
+@router.get("/research/export-results-csv")
+def export_research_results_csv(
+    name: Optional[str] = None,
+    technology_type_id: Optional[int] = None,
+    development_stage_id: Optional[int] = None,
+    organization_id: Optional[int] = None,
+    person_id: Optional[int] = None,
+    direction_id: Optional[int] = None,
+    source_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Экспортирует отфильтрованные результаты в CSV
+    """
+    try:
+        # Используем ту же логику фильтрации, что и в get_research_list
+        query = db.query(Research)
+        
+        # Применяем фильтры, если они переданы
+        if name:
+            query = query.filter(Research.name.ilike(f"%{name}%"))
+            
+        if technology_type_id:
+            query = query.filter(Research.technology_type_id == technology_type_id)
+            
+        if development_stage_id:
+            query = query.filter(Research.development_stage_id == development_stage_id)
+            
+        if organization_id:
+            query = query.join(Research.organizations).filter(Organization.id == organization_id)
+            
+        if person_id:
+            query = query.join(Research.people).filter(Person.id == person_id)
+            
+        if direction_id:
+            query = query.join(Research.directions).filter(Direction.id == direction_id)
+            
+        if source_id:
+            query = query.join(Research.sources).filter(Source.id == source_id)
+        
+        research_list = query.all()
+        logger.info(f"Запрошен экспорт в CSV. Найдено: {len(research_list)} записей")
+        
+        # Создаем CSV из результатов
+        csv_output = io.StringIO()
+        writer = csv.writer(csv_output)
+        
+        # Записываем заголовки
+        headers = [
+            "Название", "Описание", "Тип технологии", "Этап разработки", 
+            "Дата начала", "Источник", "Организации", "Люди", 
+            "Направления", "Источники"
+        ]
+        writer.writerow(headers)
+        
+        # Записываем данные
+        for research in research_list:
+            # Получаем связанные данные
+            technology_type = research.technology_type.name if research.technology_type else ""
+            development_stage = research.development_stage.name if research.development_stage else ""
+            
+            organizations = ", ".join([org.name for org in research.organizations]) if research.organizations else ""
+            people = ", ".join([person.name for person in research.people]) if research.people else ""
+            directions = ", ".join([direction.name for direction in research.directions]) if research.directions else ""
+            sources = ", ".join([source.name for source in research.sources]) if research.sources else ""
+            
+            # Форматируем дату
+            start_date = research.start_date.strftime("%d.%m.%Y") if research.start_date else ""
+            
+            # Записываем строку
+            row = [
+                research.name,
+                research.description,
+                technology_type,
+                development_stage,
+                start_date,
+                research.source_link,
+                organizations,
+                people,
+                directions,
+                sources
+            ]
+            writer.writerow(row)
+        
+        # Подготавливаем ответ
+        csv_output.seek(0)
+        content = csv_output.getvalue()
+        
+        # Определяем имя файла с учетом фильтров
+        filename = "research_results"
+        if name:
+            filename += f"_search_{name}"
+        filename += ".csv"
+        
+        # Возвращаем CSV как ответ
+        return Response(
+            content=content,
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при экспорте результатов в CSV: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при экспорте результатов в CSV: {str(e)}"
+        )
+
 @router.get("/research/stats/by-region")
 def get_research_by_region_stats(
     regions: Optional[str] = None,

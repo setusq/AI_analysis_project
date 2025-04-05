@@ -437,8 +437,8 @@ function Dashboard() {
 
     // Находим максимальное значение для масштабирования
     const maxCount = Math.max(...data.map(item => item.count || 0));
-    // Коэффициент масштабирования (максимальная высота бара - 300px)
-    const scale = maxCount > 0 ? 300 / maxCount : 0;
+    // Коэффициент масштабирования (максимальная высота бара - 250px)
+    const scale = maxCount > 0 ? 250 / maxCount : 0;
 
     return (
       <div className="modal-stats-container">
@@ -447,7 +447,7 @@ function Dashboard() {
           const fieldValue = item[fieldName] || 'Н/Д';
           const count = item.count || 0;
           // Масштабируем высоту бара относительно максимального значения
-          const barHeight = Math.max(count * scale, 5); // Минимальная высота 5px
+          const barHeight = Math.max(count * scale, 3); // Минимальная высота 3px
           // Выбираем цвет для бара
           const colorIndex = index % barColors.length;
           const barColor = barColors[colorIndex];
@@ -580,14 +580,73 @@ function Dashboard() {
           
           {/* Модальное окно для отображения гистограммы на весь экран */}
           {modalOpen && (
-            <div className="modal-overlay" onClick={closeModal}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                  <h2 className="modal-title">{modalTitle}</h2>
-                  <button className="modal-close-btn" onClick={closeModal}>&times;</button>
+            <div className="modal-overlay" onClick={closeModal} style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 1000
+            }}>
+              <div 
+                onClick={(e) => e.stopPropagation()}
+                style={{ 
+                  backgroundColor: 'white',
+                  width: '85vw',
+                  height: '80vh',
+                  margin: '0 auto',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  padding: '15px 10px',
+                  position: 'relative',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingBottom: '15px',
+                  borderBottom: '1px solid #eee',
+                  marginBottom: '15px'
+                }}>
+                  <h2 style={{
+                    margin: 0,
+                    fontSize: '24px',
+                    color: '#333'
+                  }}>{modalTitle}</h2>
+                  <button 
+                    onClick={closeModal}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '28px',
+                      cursor: 'pointer',
+                      color: '#999'
+                    }}
+                  >&times;</button>
                 </div>
-                <div className="modal-body">
-                  {renderModalChart(modalData, modalTitle)}
+                <div style={{ 
+                  flexGrow: 1,
+                  overflowX: 'auto',
+                  width: '100%',
+                  padding: '0',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  justifyContent: 'center'
+                }}>
+                  <div style={{
+                    display: 'inline-block',
+                    maxWidth: '100%'
+                  }}>
+                    {renderModalChart(modalData, modalTitle)}
+                  </div>
                 </div>
               </div>
             </div>

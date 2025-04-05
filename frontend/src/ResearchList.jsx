@@ -22,7 +22,8 @@ function ResearchList({ onEditResearch }) {
     technologyType: '',
     developmentStage: '',
     region: '',
-    direction: ''
+    direction: '',
+    searchQuery: ''
   })
 
   // Ссылка на модальное окно
@@ -156,9 +157,61 @@ function ResearchList({ onEditResearch }) {
     }))
   }
   
+  // Обработчик изменения поискового запроса
+  const handleSearchChange = (e) => {
+    const { value } = e.target
+    setFilters(prev => ({
+      ...prev,
+      searchQuery: value
+    }))
+  }
+  
+  // Экспорт результатов в CSV
+  const handleExportCSV = () => {
+    // Формируем URL с текущими фильтрами
+    let url = 'http://localhost:8001/api/research/export-results-csv'
+    const params = new URLSearchParams()
+    
+    if (filters.searchQuery) {
+      params.append('name', filters.searchQuery)
+    }
+    
+    if (filters.technologyType) {
+      params.append('technology_type_id', filters.technologyType)
+    }
+    
+    if (filters.developmentStage) {
+      params.append('development_stage_id', filters.developmentStage)
+    }
+    
+    if (filters.direction) {
+      params.append('direction_id', filters.direction)
+    }
+    
+    if (filters.region) {
+      params.append('organization_id', filters.region) // Предполагаем, что фильтр по региону связан с организациями
+    }
+    
+    // Добавляем параметры запроса, если они есть
+    if (params.toString()) {
+      url += `?${params.toString()}`
+    }
+    
+    // Открываем новое окно для скачивания файла
+    window.open(url, '_blank')
+  }
+  
   // Применение фильтров к списку исследований
   const applyFilters = () => {
     let filtered = [...researchList]
+    
+    // Фильтр по названию (поиск)
+    if (filters.searchQuery) {
+      const query = filters.searchQuery.toLowerCase()
+      filtered = filtered.filter(item => 
+        item.name.toLowerCase().includes(query)
+      )
+    }
     
     // Фильтр по типу технологии
     if (filters.technologyType) {
@@ -203,7 +256,8 @@ function ResearchList({ onEditResearch }) {
       technologyType: '',
       developmentStage: '',
       region: '',
-      direction: ''
+      direction: '',
+      searchQuery: ''
     })
   }
 
@@ -366,9 +420,29 @@ function ResearchList({ onEditResearch }) {
         </div>
       </div>
       
-      {/* Информация о результатах фильтрации */}
       <div className="filter-results-info">
         Найдено исследований: {filteredList.length} из {researchList.length}
+      </div>
+      
+      {/* Панель поиска и экспорта */}
+      <div className="search-export-panel">
+        <div className="search-container">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Поиск по названию..."
+            value={filters.searchQuery}
+            onChange={handleSearchChange}
+          />
+        </div>
+        
+        <button 
+          className="export-button" 
+          onClick={handleExportCSV}
+          title="Экспортировать результаты в CSV"
+        >
+          Экспорт в CSV
+        </button>
       </div>
       
       {filteredList.length === 0 ? (

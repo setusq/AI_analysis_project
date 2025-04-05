@@ -776,4 +776,63 @@ body.modal-open {
   width: 600px !important;
   max-width: 600px !important;
   border: none;
+}
+
+/* Стили для панели поиска и экспорта */
+.search-export-panel {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 10px 0;
+  background-color: transparent;
+  border-radius: 0;
+  border: none;
+  width: 100%;
+  max-width: 100%;
+  margin: 15px auto;
+  box-sizing: border-box;
+}
+
+.search-container {
+  flex: 0 0 auto;
+  max-width: 500px;
+  margin-right: 10px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 15px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+}
+
+.export-button {
+  background-color: #2b66cd;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.export-button:hover {
+  background-color: #2355AD;
+}
+
+.export-button:active {
+  background-color: #2355AD;
 } 

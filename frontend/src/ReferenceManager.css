@@ -38,7 +38,7 @@
 }
 
 .reference-tabs button.active {
-  background-color: #0056b3;
+  background-color: #2355AD;
   color: white;
 }
 
@@ -168,12 +168,12 @@
 }
 
 .update-button {
-  background-color: #0056b3;
+  background-color: #2b66cd;
   color: white;
 }
 
 .update-button:hover {
-  background-color: #003d82;
+  background-color: #2355AD;
 }
 
 .cancel-button {
@@ -204,11 +204,11 @@
 
 .edit-button {
   background-color: #e7f3ff;
-  color: #0056b3;
+  color: #2355AD;
 }
 
 .edit-button:hover {
-  background-color: #cce5ff;
+  background-color: #d8e8ff;
 }
 
 .delete-button {
@@ -222,14 +222,14 @@
 
 .add-button,
 .confirm-button {
-  background-color: #0056b3;
+  background-color: #2b66cd;
   color: white;
   padding: 0 16px;
 }
 
 .add-button:hover,
 .confirm-button:hover {
-  background-color: #003d82;
+  background-color: #2355AD;
 }
 
 .add-button:disabled,
@@ -364,7 +364,7 @@
 }
 
 .tab.active {
-  background-color: #007bff;
+  background-color: #2b66cd;
   color: white;
 }
 
@@ -399,7 +399,7 @@
 
 .search-input:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: #2355AD;
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
@@ -527,7 +527,7 @@
 .form-group textarea:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: #2b66cd;
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
