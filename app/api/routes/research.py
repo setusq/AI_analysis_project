@@ -754,13 +754,36 @@ def get_research(research_id: int, db: Session = Depends(get_db)):
         research = db.query(Research).filter(Research.id == research_id).first()
         if not research:
             raise HTTPException(status_code=404, detail="Исследование не найдено")
-        logger.info(f"Запрошено исследование с ID {research_id}")
+        
+        logger.info(f"Запрошено исследование с ID {research_id}: {research.name}")
         return research
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Ошибка при получении исследования: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при получении исследования: {str(e)}"
+        )
+
+@router.delete("/research/{research_id}")
+def delete_research(research_id: int, db: Session = Depends(get_db)):
+    try:
+        # Получаем существующее исследование
+        db_research = db.query(Research).filter(Research.id == research_id).first()
+        if not db_research:
+            raise HTTPException(status_code=404, detail="Исследование не найдено")
+        
+        # Удаляем исследование
+        db.delete(db_research)
+        db.commit()
+        
+        logger.info(f"Удалено исследование с ID {research_id}: {db_research.name}")
+        return {"message": "Исследование успешно удалено"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Ошибка при удалении исследования: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при удалении исследования: {str(e)}"
         ) 

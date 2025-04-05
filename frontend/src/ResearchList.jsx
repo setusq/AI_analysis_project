@@ -26,6 +26,10 @@ function ResearchList({ onEditResearch }) {
     searchQuery: ''
   })
 
+  // Состояние для модального окна подтверждения удаления
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [researchToDelete, setResearchToDelete] = useState(null);
+
   // Параметры пагинации
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -319,6 +323,58 @@ function ResearchList({ onEditResearch }) {
       ...prev,
       currentPage: pageNumber
     }));
+  }
+  
+  // Показать модальное окно подтверждения удаления
+  const handleConfirmDelete = (research) => {
+    setResearchToDelete(research);
+    setShowDeleteConfirmModal(true);
+    // Блокировка прокрутки основного документа при открытии модального окна
+    document.body.style.overflow = 'hidden';
+  }
+  
+  // Отмена удаления
+  const handleCancelDelete = () => {
+    setShowDeleteConfirmModal(false);
+    setResearchToDelete(null);
+    // Восстановление прокрутки основного документа
+    document.body.style.overflow = 'auto';
+  }
+  
+  // Подтверждение удаления
+  const handleDeleteResearch = async () => {
+    if (!researchToDelete) return;
+    
+    try {
+      const response = await fetch(`http://localhost:8001/api/research/${researchToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        // Удаляем исследование из списка
+        setResearchList(prev => prev.filter(item => item.id !== researchToDelete.id));
+        // Закрываем модальное окно
+        setShowDeleteConfirmModal(false);
+        // Закрываем окно просмотра деталей, если оно открыто
+        if (showModal && selectedResearch && selectedResearch.id === researchToDelete.id) {
+          handleCloseModal();
+        }
+        // Сбрасываем данные для удаления
+        setResearchToDelete(null);
+        // Восстановление прокрутки основного документа
+        document.body.style.overflow = 'auto';
+      } else {
+        const errorData = await response.json();
+        console.error('Ошибка при удалении исследования:', errorData);
+        alert('Не удалось удалить исследование: ' + (errorData.detail || 'Ошибка сервера'));
+      }
+    } catch (error) {
+      console.error('Ошибка при удалении исследования:', error);
+      alert('Не удалось удалить исследование: ' + error.message);
+    }
   }
   
   // Сброс фильтров
@@ -832,7 +888,7 @@ function ResearchList({ onEditResearch }) {
           height: '100vh'
         }}>
           <div 
-            className="modal-content modal-narrow" 
+            className="modal-content" 
             onClick={e => e.stopPropagation()} 
             tabIndex={0}
             ref={modalRef}
@@ -840,13 +896,13 @@ function ResearchList({ onEditResearch }) {
             aria-modal="true"
             onScroll={(e) => e.stopPropagation()}
             style={{
-              width: '600px',
-              maxWidth: '600px',
+              width: '99vw',
+              maxWidth: '99vw',
               backgroundColor: 'white',
               padding: '25px',
               borderRadius: '8px',
               overflowY: 'scroll',
-              maxHeight: '80vh',
+              maxHeight: '90vh',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
             }}
           >
@@ -1011,12 +1067,67 @@ function ResearchList({ onEditResearch }) {
               >
                 Редактировать
               </button>
+              <button 
+                className="delete-button"
+                onClick={() => handleConfirmDelete(selectedResearch)}
+              >
+                Удалить
+              </button>
             </div>
           </div>
         </div>
       )}
       
       <Pagination />
+      
+      {/* Модальное окно подтверждения удаления */}
+      {showDeleteConfirmModal && researchToDelete && (
+        <div className="modal-overlay" onClick={handleCancelDelete} style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          width: '100vw',
+          height: '100vh'
+        }}>
+          <div 
+            className="confirm-modal" 
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '400px',
+              backgroundColor: 'white',
+              padding: '25px',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+            }}
+          >
+            <h3>Подтверждение удаления</h3>
+            <p>Вы действительно хотите удалить исследование "{researchToDelete.name}"?</p>
+            <p className="warning-text">Это действие невозможно отменить.</p>
+            
+            <div className="confirm-actions">
+              <button 
+                className="cancel-button"
+                onClick={handleCancelDelete}
+              >
+                Отмена
+              </button>
+              <button 
+                className="confirm-delete-button"
+                onClick={handleDeleteResearch}
+              >
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
