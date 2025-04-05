@@ -26,6 +26,33 @@ function ResearchList({ onEditResearch }) {
     searchQuery: ''
   })
 
+  // Параметры пагинации
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    itemsPerPage: 21,
+    totalPages: 1
+  })
+  
+  // Параметры сортировки
+  const [sortOption, setSortOption] = useState('default') // default, name-asc, name-desc, date-asc, date-desc
+  
+  // Выбранные значения фильтров
+  const [selectedTechTypes, setSelectedTechTypes] = useState([])
+  const [selectedStages, setSelectedStages] = useState([])
+  const [selectedRegions, setSelectedRegions] = useState([])
+  const [selectedDirections, setSelectedDirections] = useState([])
+  
+  // Состояние открытых/закрытых фильтров
+  const [openFilter, setOpenFilter] = useState(null)
+  
+  // Ссылки на DOM-элементы фильтров для отслеживания кликов снаружи
+  const filterRefs = {
+    techType: useRef(null),
+    stage: useRef(null),
+    region: useRef(null),
+    direction: useRef(null)
+  }
+  
   // Ссылка на модальное окно
   const modalRef = useRef(null)
   
@@ -34,10 +61,30 @@ function ResearchList({ onEditResearch }) {
     fetchReferences()
   }, [])
   
+  // Обработчик клика вне фильтра для его закрытия
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (openFilter) {
+        const currentRef = filterRefs[openFilter];
+        if (currentRef && currentRef.current && !currentRef.current.contains(event.target)) {
+          setOpenFilter(null);
+        }
+      }
+    }
+    
+    // Добавляем обработчик события
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Очищаем обработчик при размонтировании компонента
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openFilter]);
+  
   // Применяем фильтры при изменении списка исследований или фильтров
   useEffect(() => {
     applyFilters()
-  }, [researchList, filters])
+  }, [researchList, filters, selectedTechTypes, selectedStages, selectedRegions, selectedDirections])
 
   const fetchReferences = async () => {
     try {
@@ -149,7 +196,7 @@ function ResearchList({ onEditResearch }) {
   }
   
   // Обработчик изменения фильтров
-  const handleFilterChange = (e) => {
+  const handleSelectChange = (e) => {
     const { name, value } = e.target
     setFilters(prev => ({
       ...prev,
@@ -176,20 +223,20 @@ function ResearchList({ onEditResearch }) {
       params.append('name', filters.searchQuery)
     }
     
-    if (filters.technologyType) {
-      params.append('technology_type_id', filters.technologyType)
+    if (selectedTechTypes.length > 0) {
+      params.append('technology_type_id', selectedTechTypes.join(','))
     }
     
-    if (filters.developmentStage) {
-      params.append('development_stage_id', filters.developmentStage)
+    if (selectedStages.length > 0) {
+      params.append('development_stage_id', selectedStages.join(','))
     }
     
-    if (filters.direction) {
-      params.append('direction_id', filters.direction)
+    if (selectedDirections.length > 0) {
+      params.append('direction_id', selectedDirections.join(','))
     }
     
-    if (filters.region) {
-      params.append('organization_id', filters.region) // Предполагаем, что фильтр по региону связан с организациями
+    if (selectedRegions.length > 0) {
+      params.append('region_id', selectedRegions.join(','))
     }
     
     // Добавляем параметры запроса, если они есть
@@ -214,40 +261,64 @@ function ResearchList({ onEditResearch }) {
     }
     
     // Фильтр по типу технологии
-    if (filters.technologyType) {
+    if (selectedTechTypes.length > 0) {
       filtered = filtered.filter(item => 
-        item.technology_type && item.technology_type.id === parseInt(filters.technologyType)
+        item.technology_type && selectedTechTypes.includes(item.technology_type.id)
       )
     }
     
     // Фильтр по этапу разработки
-    if (filters.developmentStage) {
+    if (selectedStages.length > 0) {
       filtered = filtered.filter(item => 
-        item.development_stage && item.development_stage.id === parseInt(filters.developmentStage)
+        item.development_stage && selectedStages.includes(item.development_stage.id)
       )
     }
     
     // Фильтр по региону (с учетом регионов организаций)
-    if (filters.region) {
-      const regionId = parseInt(filters.region)
+    if (selectedRegions.length > 0) {
       filtered = filtered.filter(item => 
         // Прямые регионы исследования
-        (item.regions && item.regions.some(region => region.id === regionId)) ||
+        (item.regions && item.regions.some(region => selectedRegions.includes(region.id))) ||
         // Регионы организаций
         (item.organizations && item.organizations.some(org => 
-          org.region && org.region.id === regionId
+          org.region && selectedRegions.includes(org.region.id)
         ))
       )
     }
     
     // Фильтр по направлению
-    if (filters.direction) {
+    if (selectedDirections.length > 0) {
       filtered = filtered.filter(item => 
-        item.directions && item.directions.some(direction => direction.id === parseInt(filters.direction))
+        item.directions && item.directions.some(direction => selectedDirections.includes(direction.id))
       )
     }
     
+    // Обновляем общее количество страниц
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pagination.itemsPerPage));
+    
+    // Если текущая страница больше, чем общее количество страниц, сбрасываем на первую
+    if (pagination.currentPage > totalPages) {
+      setPagination(prev => ({
+        ...prev,
+        currentPage: 1,
+        totalPages
+      }));
+    } else {
+      setPagination(prev => ({
+        ...prev,
+        totalPages
+      }));
+    }
+    
     setFilteredList(filtered)
+  }
+  
+  // Обработчик изменения страницы
+  const handlePageChange = (pageNumber) => {
+    setPagination(prev => ({
+      ...prev,
+      currentPage: pageNumber
+    }));
   }
   
   // Сброс фильтров
@@ -258,7 +329,16 @@ function ResearchList({ onEditResearch }) {
       region: '',
       direction: '',
       searchQuery: ''
-    })
+    });
+    setSelectedTechTypes([]);
+    setSelectedStages([]);
+    setSelectedRegions([]);
+    setSelectedDirections([]);
+    setOpenFilter(null);
+    setPagination(prev => ({
+      ...prev,
+      currentPage: 1
+    }));
   }
 
   // Закрытие модального окна и разблокировка прокрутки
@@ -331,6 +411,194 @@ function ResearchList({ onEditResearch }) {
     }
   }, [showModal]);
 
+  // Переключение видимости фильтра
+  const toggleFilter = (filterName) => {
+    setOpenFilter(openFilter === filterName ? null : filterName);
+  };
+  
+  // Отображение выбранных фильтров
+  const renderSelectedCount = (filterType, selectedItems) => {
+    if (!selectedItems || selectedItems.length === 0) {
+      return <span className="placeholder-text">Выберите значения</span>;
+    }
+    
+    return (
+      <span className="selected-count">
+        Выбрано: {selectedItems.length}
+      </span>
+    );
+  };
+  
+  // Обработчик изменения чекбоксов
+  const handleFilterChange = (filterType, value, isChecked) => {
+    switch(filterType) {
+      case 'techType':
+        setSelectedTechTypes(prev => 
+          isChecked ? [...prev, value] : prev.filter(item => item !== value)
+        );
+        break;
+      case 'stage':
+        setSelectedStages(prev => 
+          isChecked ? [...prev, value] : prev.filter(item => item !== value)
+        );
+        break;
+      case 'region':
+        setSelectedRegions(prev => 
+          isChecked ? [...prev, value] : prev.filter(item => item !== value)
+        );
+        break;
+      case 'direction':
+        setSelectedDirections(prev => 
+          isChecked ? [...prev, value] : prev.filter(item => item !== value)
+        );
+        break;
+      default:
+        break;
+    }
+  };
+  
+  // Отрисовка чекбоксов для фильтра
+  const renderFilterCheckboxes = (items, filterType, selectedItems) => {
+    return (
+      <div className="filter-dropdown">
+        <div className="filter-checkboxes">
+          {items.map((item) => (
+            <label key={item.id} className="filter-checkbox-label">
+              <input
+                type="checkbox"
+                checked={selectedItems.includes(item.id)}
+                onChange={(e) => handleFilterChange(filterType, item.id, e.target.checked)}
+              />
+              <span>{item.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Получение исследований для текущей страницы
+  const getCurrentPageItems = () => {
+    // Сортируем список
+    let sortedList = [...filteredList];
+    
+    switch (sortOption) {
+      case 'name-asc':
+        sortedList.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'name-desc':
+        sortedList.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case 'date-asc':
+        sortedList.sort((a, b) => {
+          const dateA = a.start_date ? new Date(a.start_date) : new Date(0);
+          const dateB = b.start_date ? new Date(b.start_date) : new Date(0);
+          return dateA - dateB;
+        });
+        break;
+      case 'date-desc':
+        sortedList.sort((a, b) => {
+          const dateA = a.start_date ? new Date(a.start_date) : new Date(0);
+          const dateB = b.start_date ? new Date(b.start_date) : new Date(0);
+          return dateB - dateA;
+        });
+        break;
+      default:
+        // По умолчанию не сортируем
+        break;
+    }
+    
+    const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
+    const endIndex = startIndex + pagination.itemsPerPage;
+    return sortedList.slice(startIndex, endIndex);
+  }
+  
+  // Обработчик изменения сортировки
+  const handleSortChange = (option) => {
+    setSortOption(option);
+  }
+  
+  // Компонент пагинации
+  const Pagination = () => {
+    // Если одна страница, не показываем пагинацию
+    if (pagination.totalPages <= 1) return null;
+    
+    const pageNumbers = [];
+    
+    // Определяем страницы для отображения (максимум 5)
+    let startPage = Math.max(1, pagination.currentPage - 2);
+    let endPage = Math.min(pagination.totalPages, startPage + 4);
+    
+    // Если отображаем менее 5 страниц в конце, корректируем начальную страницу
+    if (endPage - startPage < 4 && endPage === pagination.totalPages) {
+      startPage = Math.max(1, endPage - 4);
+    }
+    
+    // Заполняем массив номеров страниц
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+    
+    return (
+      <div className="pagination">
+        {/* Кнопка первой страницы */}
+        {pagination.currentPage > 1 && (
+          <button
+            className="page-button first-page"
+            onClick={() => handlePageChange(1)}
+            title="Первая страница"
+          >
+            &laquo;
+          </button>
+        )}
+        
+        {/* Кнопка предыдущей страницы */}
+        {pagination.currentPage > 1 && (
+          <button
+            className="page-button prev-page"
+            onClick={() => handlePageChange(pagination.currentPage - 1)}
+            title="Предыдущая страница"
+          >
+            &lsaquo;
+          </button>
+        )}
+        
+        {/* Номера страниц */}
+        {pageNumbers.map(number => (
+          <button
+            key={number}
+            className={`page-button ${pagination.currentPage === number ? 'active' : ''}`}
+            onClick={() => handlePageChange(number)}
+          >
+            {number}
+          </button>
+        ))}
+        
+        {/* Кнопка следующей страницы */}
+        {pagination.currentPage < pagination.totalPages && (
+          <button
+            className="page-button next-page"
+            onClick={() => handlePageChange(pagination.currentPage + 1)}
+            title="Следующая страница"
+          >
+            &rsaquo;
+          </button>
+        )}
+        
+        {/* Кнопка последней страницы */}
+        {pagination.currentPage < pagination.totalPages && (
+          <button
+            className="page-button last-page"
+            onClick={() => handlePageChange(pagination.totalPages)}
+            title="Последняя страница"
+          >
+            &raquo;
+          </button>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return <div className="loading">Загрузка исследований...</div>
   }
@@ -349,64 +617,60 @@ function ResearchList({ onEditResearch }) {
       <div className="filters-panel">
         <h3>Фильтры</h3>
         <div className="filters-grid">
-          <div className="filter-group">
-            <label htmlFor="technologyType">Тип технологии:</label>
-            <select 
-              id="technologyType" 
-              name="technologyType" 
-              value={filters.technologyType} 
-              onChange={handleFilterChange}
+          <div className="filter-group" ref={filterRefs.techType}>
+            <div 
+              className={`filter-header ${openFilter === 'techType' ? 'active' : ''}`}
+              onClick={() => toggleFilter('techType')}
             >
-              <option value="">Все типы</option>
-              {references.technologyTypes.map(type => (
-                <option key={type.id} value={type.id}>{type.name}</option>
-              ))}
-            </select>
+              <h3>Тип технологии</h3>
+              {renderSelectedCount('techType', selectedTechTypes)}
+              <span className="dropdown-arrow">{openFilter === 'techType' ? '▲' : '▼'}</span>
+            </div>
+            {openFilter === 'techType' && references.technologyTypes.length > 0 && 
+              renderFilterCheckboxes(references.technologyTypes, 'techType', selectedTechTypes)
+            }
           </div>
           
-          <div className="filter-group">
-            <label htmlFor="developmentStage">Этап разработки:</label>
-            <select 
-              id="developmentStage" 
-              name="developmentStage" 
-              value={filters.developmentStage} 
-              onChange={handleFilterChange}
+          <div className="filter-group" ref={filterRefs.stage}>
+            <div 
+              className={`filter-header ${openFilter === 'stage' ? 'active' : ''}`}
+              onClick={() => toggleFilter('stage')}
             >
-              <option value="">Все этапы</option>
-              {references.developmentStages.map(stage => (
-                <option key={stage.id} value={stage.id}>{stage.name}</option>
-              ))}
-            </select>
+              <h3>Этап разработки</h3>
+              {renderSelectedCount('stage', selectedStages)}
+              <span className="dropdown-arrow">{openFilter === 'stage' ? '▲' : '▼'}</span>
+            </div>
+            {openFilter === 'stage' && references.developmentStages.length > 0 && 
+              renderFilterCheckboxes(references.developmentStages, 'stage', selectedStages)
+            }
           </div>
           
-          <div className="filter-group">
-            <label htmlFor="region">Регион:</label>
-            <select 
-              id="region" 
-              name="region" 
-              value={filters.region} 
-              onChange={handleFilterChange}
+          <div className="filter-group" ref={filterRefs.region}>
+            <div 
+              className={`filter-header ${openFilter === 'region' ? 'active' : ''}`}
+              onClick={() => toggleFilter('region')}
             >
-              <option value="">Все регионы</option>
-              {references.regions.map(region => (
-                <option key={region.id} value={region.id}>{region.name}</option>
-              ))}
-            </select>
+              <h3>Регион</h3>
+              {renderSelectedCount('region', selectedRegions)}
+              <span className="dropdown-arrow">{openFilter === 'region' ? '▲' : '▼'}</span>
+            </div>
+            {openFilter === 'region' && references.regions.length > 0 && 
+              renderFilterCheckboxes(references.regions, 'region', selectedRegions)
+            }
           </div>
           
-          <div className="filter-group">
-            <label htmlFor="direction">Направление:</label>
-            <select 
-              id="direction" 
-              name="direction" 
-              value={filters.direction} 
-              onChange={handleFilterChange}
+          <div className="filter-group" ref={filterRefs.direction}>
+            <div 
+              className={`filter-header ${openFilter === 'direction' ? 'active' : ''}`}
+              onClick={() => toggleFilter('direction')}
             >
-              <option value="">Все направления</option>
-              {references.directions.map(direction => (
-                <option key={direction.id} value={direction.id}>{direction.name}</option>
-              ))}
-            </select>
+              <h3>Направление</h3>
+              {renderSelectedCount('direction', selectedDirections)}
+              <span className="dropdown-arrow">{openFilter === 'direction' ? '▲' : '▼'}</span>
+            </div>
+            {openFilter === 'direction' && references.directions.length > 0 && 
+              renderFilterCheckboxes(references.directions, 'direction', selectedDirections)
+            }
           </div>
         </div>
         
@@ -422,6 +686,11 @@ function ResearchList({ onEditResearch }) {
       
       <div className="filter-results-info">
         Найдено исследований: {filteredList.length} из {researchList.length}
+        {filteredList.length > pagination.itemsPerPage && (
+          <span className="pagination-info">
+            (страница {pagination.currentPage} из {pagination.totalPages})
+          </span>
+        )}
       </div>
       
       {/* Панель поиска и экспорта */}
@@ -435,6 +704,23 @@ function ResearchList({ onEditResearch }) {
             onChange={handleSearchChange}
           />
         </div>
+        
+        <div className="sort-container">
+          <select 
+            className="sort-select"
+            value={sortOption}
+            onChange={(e) => handleSortChange(e.target.value)}
+            title="Сортировка списка"
+          >
+            <option value="default">Без сортировки</option>
+            <option value="name-asc">По названию (А-Я)</option>
+            <option value="name-desc">По названию (Я-А)</option>
+            <option value="date-asc">По дате (сначала старые)</option>
+            <option value="date-desc">По дате (сначала новые)</option>
+          </select>
+        </div>
+        
+        <div className="spacer"></div>
         
         <button 
           className="export-button" 
@@ -452,7 +738,7 @@ function ResearchList({ onEditResearch }) {
         </div>
       ) : (
         <div className="research-grid">
-          {filteredList.map(research => (
+          {getCurrentPageItems().map(research => (
             <div key={research.id} className="research-card">
               <h3>{research.name}</h3>
               
@@ -729,6 +1015,8 @@ function ResearchList({ onEditResearch }) {
           </div>
         </div>
       )}
+      
+      <Pagination />
     </div>
   )
 }
