@@ -54,8 +54,7 @@
 .empty-list {
   text-align: center;
   padding: 40px;
-  background-color: #f9f9f9;
-  border-radius: 8px;
+  background-color: transparent;
   color: #666;
 }
 
@@ -466,8 +465,7 @@ body.modal-open {
 .filter-results-info {
   margin: 20px 0;
   padding: 12px 15px;
-  background-color: #f8f9fa;
-  border-radius: 6px;
+  background-color: transparent;
   color: #555;
   font-size: 14px;
   display: flex;
