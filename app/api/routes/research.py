@@ -170,8 +170,8 @@ def export_csv_template():
     """
     try:
         # Создаем содержимое CSV файла
-        csv_content = "name,description,technology_type,development_stage,start_date,source_link,organizations,people,directions,sources\n"
-        csv_content += "Название исследования,Описание исследования,Искусственный интеллект,Прототип,01.01.2023,https://example.com/research,\"Google, Microsoft\",\"Илон Маск, Сатья Наделла\",\"Здравоохранение, Образование\",\"IEEE Spectrum, Nature\""
+        csv_content = "name,description,technology_type,development_stage,start_date,source_link,organizations,regions,people,directions,sources\n"
+        csv_content += "Название исследования,Описание исследования,Искусственный интеллект,Прототип,01.01.2023,https://example.com/research,\"Google, Microsoft\",\"Москва, Санкт-Петербург\",\"Илон Маск, Сатья Наделла\",\"Здравоохранение, Образование\",\"IEEE Spectrum, Nature\""
         
         # Возвращаем CSV как простой текст
         return Response(
@@ -445,7 +445,7 @@ def export_research_results_csv(
         # Записываем заголовки
         headers = [
             "Название", "Описание", "Тип технологии", "Этап разработки", 
-            "Дата начала", "Источник", "Организации", "Люди", 
+            "Дата начала", "Источник", "Организации", "Регионы", "Люди", 
             "Направления", "Источники"
         ]
         writer.writerow(headers)
@@ -457,6 +457,8 @@ def export_research_results_csv(
             development_stage = research.development_stage.name if research.development_stage else ""
             
             organizations = ", ".join([org.name for org in research.organizations]) if research.organizations else ""
+            # Добавляем получение регионов из организаций
+            regions = ", ".join(set([org.region.name for org in research.organizations if org.region])) if research.organizations else ""
             people = ", ".join([person.name for person in research.people]) if research.people else ""
             directions = ", ".join([direction.name for direction in research.directions]) if research.directions else ""
             sources = ", ".join([source.name for source in research.sources]) if research.sources else ""
@@ -473,6 +475,7 @@ def export_research_results_csv(
                 start_date,
                 research.source_link,
                 organizations,
+                regions,  # Добавляем регионы в строку
                 people,
                 directions,
                 sources
@@ -746,7 +749,7 @@ def get_research_by_direction_stats(
     except Exception as e:
         logger.error(f"Ошибка при получении статистики по направлениям: {str(e)}")
         # Возвращаем пустой список вместо ошибки
-        return []
+        return [] 
 
 @router.get("/research/{research_id}", response_model=ResearchResponse)
 def get_research(research_id: int, db: Session = Depends(get_db)):
