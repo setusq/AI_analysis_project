@@ -171,7 +171,8 @@ def export_csv_template():
     try:
         # Создаем содержимое CSV файла
         csv_content = "name,description,technology_type,development_stage,start_date,source_link,organizations,regions,people,directions,sources\n"
-        csv_content += "Название исследования,Описание исследования,Искусственный интеллект,Прототип,01.01.2023,https://example.com/research,\"Google, Microsoft\",\"Москва, Санкт-Петербург\",\"Илон Маск, Сатья Наделла\",\"Здравоохранение, Образование\",\"IEEE Spectrum, Nature\""
+        csv_content += "Название исследования,Описание исследования,Искусственный интеллект,Прототип,01.01.2023,https://example.com/research,\"Google, Microsoft\",\"США\",\"Илон Маск, Сатья Наделла\",\"Здравоохранение, Образование\",\"IEEE Spectrum, Nature\"\n"
+        csv_content += "Исследование ИИ в медицине,Разработка системы диагностики,Машинное обучение,Исследование,01.02.2023,https://example.com/medical-ai,\"МГУ, МФТИ\",\"Россия\",\"Иванов И.И., Петров П.П.\",\"Здравоохранение\",\"Nature Medicine\""
         
         # Возвращаем CSV как простой текст
         return Response(
@@ -310,14 +311,34 @@ async def import_research_from_csv(
                     if row.get('organizations'):
                         organizations = [org.strip() for org in row['organizations'].split(',') if org.strip()]
                         logger.info(f"Список организаций для добавления: {organizations}")
+                        
+                        # Получаем регион из CSV
+                        region_name = row.get('regions', '').strip()
+                        region = None
+                        if region_name:
+                            region = db.query(Region).filter(Region.name == region_name).first()
+                            if not region:
+                                region = Region(name=region_name)
+                                db.add(region)
+                                db.flush()
+                                logger.info(f"Создан новый регион: {region_name}")
+                        
                         for org_name in organizations:
                             organization = db.query(Organization).filter(Organization.name == org_name).first()
                             if not organization:
-                                organization = Organization(name=org_name)
+                                organization = Organization(
+                                    name=org_name,
+                                    region_id=region.id if region else None
+                                )
                                 db.add(organization)
                                 db.flush()
                                 results["new_refs"]["organizations"].append(org_name)
-                                logger.info(f"Создана новая организация: {org_name}")
+                                logger.info(f"Создана новая организация: {org_name} с регионом: {region_name if region else 'не указан'}")
+                            elif region and not organization.region_id:
+                                # Если организация существует, но у неё нет региона, обновляем его
+                                organization.region_id = region.id
+                                db.flush()
+                                logger.info(f"Обновлен регион для организации: {org_name} -> {region_name}")
                             
                             research.organizations.append(organization)
                     
@@ -749,7 +770,7 @@ def get_research_by_direction_stats(
     except Exception as e:
         logger.error(f"Ошибка при получении статистики по направлениям: {str(e)}")
         # Возвращаем пустой список вместо ошибки
-        return [] 
+        return []
 
 @router.get("/research/{research_id}", response_model=ResearchResponse)
 def get_research(research_id: int, db: Session = Depends(get_db)):
